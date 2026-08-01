@@ -23,9 +23,9 @@ the extras here (`pdfplumber`, `anthropic`) are the project's, not the machine's
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,pdf,llm]"                  # dev only: drop pdf and llm
+pip install -e ".[dev,pdf,llm,indic]"            # dev only: drop the extras
 
-pytest -q                                        # 128 tests, must stay green
+pytest -q                                        # 133 tests, must stay green
 ruff check . && pylint src/sluglint              # must stay clean (10.00/10)
 
 python -m sluglint.cli lint examples/the_last_train.fountain
@@ -49,6 +49,7 @@ itself skipped. Keep it that way.
 | Path | Role |
 |---|---|
 | `src/sluglint/rulebook.yaml` | THE product. 101 rules + 4 profile definitions, as data. |
+| `src/sluglint/indic.py` | Folds Telugu/Devanagari/Tamil names onto one comparison key so tier-2 fuzzy matching works on an abugida and across writing systems. `indic-transliteration` behind the `indic` extra, graceful without it. |
 | `src/sluglint/ingest/pdf.py` | PDF to Fountain by margin geometry. Learns the document's own margins, drops printer furniture, refuses PDFs it cannot read. `pdfplumber` behind the `pdf` extra. |
 | `src/sluglint/parser.py` | Fountain-lite → `Script{Scenes[Elements]}`. Forgiving on purpose. Keeps raw lines, extensions, dual markers, scene numbers, act markers. |
 | `src/sluglint/models.py` | Dataclasses. `Finding.fingerprint` powers draft diffing. |
@@ -64,7 +65,7 @@ itself skipped. Keep it that way.
 | `src/sluglint/cli.py` | `lint` / `diff` / `rules`. |
 | `examples/` | `clean_pages` (must stay clean), one fixture per profile, the v1 to v2 diff pair. |
 | `benchmark/` | Fault-injection mutators, measured recall, draft-drift demo. `corpus/` is gitignored. |
-| `tests/` | 128 tests. Positive fixture per deterministic rule + clean-script gate. |
+| `tests/` | 133 tests. Positive fixture per deterministic rule + clean-script gate. |
 | `docs/` | Competitive landscape, product and business model, script licensing. |
 
 ## Hard rules for working in this repo
@@ -116,8 +117,10 @@ itself skipped. Keep it that way.
     move a rule behind a paywall.
 
 12. **No em dashes anywhere.** Not in prose, code comments, docstrings, or the
-    rulebook. Python source is ASCII; typographic characters the linter hunts
-    for are written as `\uXXXX` escapes. Also avoid the "X, not Y" antithesis
+    rulebook. Python source under `src/` is ASCII and CI enforces it; the
+    characters the linter hunts for, and the Indic ranges it folds, are written
+    as `\uXXXX` escapes. Tests are exempt, because the Indic cases have to
+    carry the scripts they are testing. Also avoid the "X, not Y" antithesis
     construction; say the thing plainly instead.
 
 ## Branching

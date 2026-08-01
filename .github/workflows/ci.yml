@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
-        run: python -m pip install -e ".[dev,pdf]"
+        run: python -m pip install -e ".[dev,pdf,indic]"
       - name: Lint (ruff)
         run: ruff check .
       - name: Lint (pylint)
@@ -34,6 +34,12 @@ jobs:
                --include='*.yaml' --include='*.yml' --include='*.toml' \
                --include='*.fountain' . ; then
             echo "em or en dash found; use a comma, colon, or full stop" && exit 1
+          fi
+      - name: Shipped Python source stays ASCII
+        run: |
+          # tests are exempt: the Indic cases have to carry the scripts they test.
+          if grep -rlP '[^\x00-\x7f]' --include='*.py' src ; then
+            echo "non-ASCII in src; write it as a \\uXXXX escape" && exit 1
           fi
       - name: Every rule resolves to an implementation
         run: |
@@ -59,7 +65,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install
-        run: python -m pip install -e ".[dev,pdf]"
+        run: python -m pip install -e ".[dev,pdf,indic]"
       - name: README badges match the rulebook
         run: |
           python - <<'PY'

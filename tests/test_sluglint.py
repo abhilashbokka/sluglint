@@ -572,3 +572,55 @@ def test_a_capitalised_sound_is_not_an_unpaid_prop():
     prop = "INT. HOUSE - NIGHT\n\nShe puts a LOCKET on the table and leaves.\n"
     assert not [f for f in lint(parse_text(action)) if f.rule_id == "C026"]
     assert [f for f in lint(parse_text(prop)) if f.rule_id == "C026"]
+
+
+# ============================================================ Indic script names
+# An abugida does not compare like an alphabet, and a code-mixed draft cues the
+# same person in two writing systems.
+
+TELUGU_KRISHNA = "కృష్ణ"        # KRISHNA, correctly spelled
+TELUGU_KRISHNA_TYPO = "కృష్న"   # the same name, one wrong letter
+TELUGU_RAJU = "రాజు"                 # RAJU, short final vowel
+TELUGU_RAJU_LONG = "రాజూ"            # RAJU, long final vowel
+DEVANAGARI_VINAYAK = "विनायक"
+
+pytest.importorskip("indic_transliteration")
+
+
+def test_fold_maps_a_name_to_one_comparison_key():
+    from sluglint.indic import fold
+    assert fold(TELUGU_KRISHNA) == "krishna" == fold("KRISHNA")
+    assert fold(TELUGU_RAJU) == "raju" == fold(TELUGU_RAJU_LONG)
+    assert fold(DEVANAGARI_VINAYAK) == "vinayak" == fold("VINAYAK")
+
+
+def test_latin_text_is_not_disturbed_by_the_fold():
+    from sluglint.indic import comparable
+    assert comparable("CHITRA", "CHITRA'S AUNT") is None
+    assert comparable("KARTHIK HOUSE", "KARTHIK'S HOUSE") is None
+
+
+def test_vowel_length_typo_in_telugu_is_below_threshold_without_the_fold():
+    """The regression this module exists for: 0.75 raw, so C001 missed it."""
+    from difflib import SequenceMatcher
+
+    from sluglint.lint.tier2_consistency import similar
+    raw = SequenceMatcher(None, TELUGU_RAJU, TELUGU_RAJU_LONG).ratio()
+    assert raw < 0.80
+    assert similar(TELUGU_RAJU, TELUGU_RAJU_LONG) == 1.0
+
+
+def test_the_same_character_cued_in_two_writing_systems_is_one_person():
+    script = parse_text(
+        f"INT. ROOM - DAY\n\n{TELUGU_KRISHNA} waits.\n\n{TELUGU_KRISHNA}\nOne.\n\n"
+        f"INT. ROOM - NIGHT\n\nKRISHNA waits.\n\nKRISHNA\nTwo.\n")
+    drift = [f for f in lint(script, "indian-regional") if f.rule_id == "C001"]
+    assert drift, "a Telugu cue and its Latin spelling are one contract"
+    assert "1.00" in drift[0].message
+
+
+def test_two_different_telugu_names_are_left_alone():
+    script = parse_text(
+        f"INT. ROOM - DAY\n\n{TELUGU_KRISHNA} and {TELUGU_RAJU} argue.\n\n"
+        f"{TELUGU_KRISHNA}\nOne.\n\n{TELUGU_RAJU}\nTwo.\n")
+    assert not [f for f in lint(script, "indian-regional") if f.rule_id == "C001"]

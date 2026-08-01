@@ -18,6 +18,7 @@ import re
 from difflib import SequenceMatcher
 from itertools import combinations
 
+from .. import indic
 from ..models import ElementType, Script
 from ..rulebook import Rule
 from .registry import detector, finding
@@ -70,6 +71,15 @@ NUMBERED_CUE = re.compile(r"^(.*?)\s*#?\s*(\d+)$")
 
 
 def similar(a: str, b: str) -> float:
+    """Similarity of two names, in [0, 1].
+
+    Every fuzzy matcher in this tier goes through here, which is why the Indic
+    fold lives here too. Comparing an abugida by code point misses a one-vowel
+    typo and can never match a cue written in Telugu against the same cue
+    written in Latin. Latin-only pairs take the path they always did.
+    """
+    if folded := indic.comparable(a, b):
+        return SequenceMatcher(None, *folded).ratio()
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 

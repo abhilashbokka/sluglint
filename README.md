@@ -7,7 +7,7 @@ severity, a line number, a source, and a suggested fix. It never offers an
 opinion about whether your story is good.
 
 ![Python](https://img.shields.io/badge/python-3.10+-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-128%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-133%20passing-2ea44f)
 ![Rulebook](https://img.shields.io/badge/rulebook-101%20rules%20as%20data-E8A33D)
 ![Benchmark](https://img.shields.io/badge/injected%20defect%20recall-97%25-2ea44f)
 ![Lint](https://img.shields.io/badge/pylint-10.00%2F10-2ea44f)
@@ -67,7 +67,8 @@ be, which is why it can publish a recall number and a competitor cannot.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,pdf,llm]"    # pdf reads PDFs, llm is the Claude tier
+pip install -e ".[dev,pdf,llm,indic]"   # pdf: read PDFs. llm: Claude tier.
+                                        # indic: match names across writing systems
 
 sluglint rules                                   # browse all 101 rules
 sluglint lint script.fountain                    # tiers 1+2, free, no API key
@@ -76,7 +77,7 @@ sluglint lint script.fountain --llm --json out.json
 sluglint diff draft1.fountain draft2.fountain    # what did I actually fix?
 sluglint convert script.pdf                      # see what we think the PDF says
 
-pytest -q                                        # 128 tests
+pytest -q                                        # 133 tests
 python benchmark/run.py                          # regenerate the numbers below
 ```
 
@@ -358,7 +359,7 @@ src/sluglint/
   cli.py                       lint | diff | rules
 benchmark/                     fault injection, measured recall, draft drift
 examples/                      one clean fixture, one per profile, a v1-to-v2 pair
-tests/                         128 tests
+tests/                         133 tests
 docs/                          market, business model, script licensing
 ```
 
@@ -366,7 +367,7 @@ docs/                          market, business model, script licensing
 
 ## Roadmap
 
-- [x] **v0.1** three-tier engine, 101-rule rulebook, 4 profiles, draft diffing, CLI, 128 tests, fault-injection benchmark
+- [x] **v0.1** three-tier engine, 101-rule rulebook, 4 profiles, draft diffing, CLI, 133 tests, fault-injection benchmark
 - [x] **PDF ingestion** by margin geometry, feeding the same script model ([docs/pdf-ingestion.md](docs/pdf-ingestion.md))
 - [ ] FDX ingestion, and an OCR fallback for pre-Unicode Indic fonts
 - [ ] A corpus of freely licensed scripts, so precision gets measured the way recall already is

@@ -16,12 +16,12 @@ you, open an issue and we will find another way.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install -e ".[dev,pdf,llm]"
+pip install -e ".[dev,pdf,llm,indic]"
 
 # or the minimum, if you are only touching tiers 1 and 2:
 #   pip install -e ".[dev]"      add ,pdf to read PDFs, ,llm for the tier-3 judge
 
-pytest -q                    # 128 tests
+pytest -q                    # 133 tests
 ruff check . && pylint src/sluglint
 python benchmark/run.py      # regenerates benchmark/REPORT.md
 ```

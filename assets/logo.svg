@@ -1,0 +1,18 @@
+<svg width="620" height="150" viewBox="0 0 620 150" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sluglint — the screenplay linter">
+  <rect x="0" y="0" width="620" height="150" rx="16" fill="#22272E"/>
+  <!-- a page whose top line is the slugline -->
+  <rect x="36" y="34" width="76" height="90" rx="7" fill="#313842"/>
+  <!-- the slugline itself, called out in the accent -->
+  <rect x="48" y="48" width="52" height="6" rx="3" fill="#E8A33D"/>
+  <!-- action / dialogue lines beneath it -->
+  <rect x="48" y="64" width="40" height="5" rx="2.5" fill="#5A6472"/>
+  <rect x="58" y="78" width="30" height="5" rx="2.5" fill="#5A6472"/>
+  <rect x="58" y="90" width="24" height="5" rx="2.5" fill="#5A6472"/>
+  <rect x="48" y="104" width="44" height="5" rx="2.5" fill="#5A6472"/>
+  <!-- the lint mark: a squiggle under the flagged line -->
+  <path d="M48 58 q5 5 10 0 t10 0 t10 0 t10 0 t10 0" stroke="#E05252" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- rule citation ticks in the margin -->
+  <path d="M120 51 L132 51 M120 67 L128 67 M120 107 L132 107" stroke="#E8A33D" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+  <text x="150" y="98" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="54" font-weight="800" letter-spacing="-1.5" fill="#F3EFE7">slug<tspan fill="#E8A33D">lint</tspan></text>
+  <text x="153" y="124" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" letter-spacing="2.2" fill="#9BA6B2">EVERY NOTE CITES A RULE</text>
+</svg>

@@ -117,6 +117,12 @@ any synthetic fixture had caught:
 Each has a regression test in `tests/test_sluglint.py` under
 *real-script parsing*.
 
+`benchmark/local_report.py` is what produced that list. Point it at a directory
+of scripts and it writes a per-script findings file to `benchmark/local/`,
+which is gitignored because the output names real scripts and quotes them. It
+is the precision half of the harness: `run.py` measures recall against defects
+we injected, and this one produces the findings a human has to read and judge.
+
 ## What it still cannot do
 
 - **Scanned pages and pre-Unicode fonts.** Detected and refused, not read. The

@@ -18,3 +18,7 @@ venv/
 # never swept in by `git add -A`.
 benchmark/corpus/*.fountain
 benchmark/corpus/*.txt
+
+# Results of linting a private corpus. These name real scripts and quote them,
+# so they stay local. `benchmark/local_report.py` regenerates them on demand.
+benchmark/local/

@@ -35,6 +35,9 @@ python -m sluglint.cli lint --profile tv-pilot examples/night_shift_pilot.founta
 python -m sluglint.cli diff examples/the_last_train.fountain examples/the_last_train_v2.fountain
 python -m sluglint.cli rules --tier 2            # browse
 python -m sluglint.cli rules --check             # fail if a rule has no handler
+
+python benchmark/run.py                          # recall, regenerates REPORT.md
+python benchmark/local_report.py ~/Scripts       # precision pass, output is gitignored
 ```
 
 `pytest` and imports work without `PYTHONPATH`, `pyproject.toml` sets
@@ -64,7 +67,7 @@ itself skipped. Keep it that way.
 | `src/sluglint/report.py` | Console/JSON rendering. |
 | `src/sluglint/cli.py` | `lint` / `diff` / `rules`. |
 | `examples/` | `clean_pages` (must stay clean), one fixture per profile, the v1 to v2 diff pair. |
-| `benchmark/` | Fault-injection mutators, measured recall, draft-drift demo. `corpus/` is gitignored. |
+| `benchmark/` | `run.py` injects known defects and measures recall. `local_report.py` lints a private corpus for the precision pass. `corpus/` and `local/` are both gitignored. |
 | `tests/` | 133 tests. Positive fixture per deterministic rule + clean-script gate. |
 | `docs/` | Competitive landscape, product and business model, script licensing. |
 

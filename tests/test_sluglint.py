@@ -624,3 +624,26 @@ def test_two_different_telugu_names_are_left_alone():
         f"INT. ROOM - DAY\n\n{TELUGU_KRISHNA} and {TELUGU_RAJU} argue.\n\n"
         f"{TELUGU_KRISHNA}\nOne.\n\n{TELUGU_RAJU}\nTwo.\n")
     assert not [f for f in lint(script, "indian-regional") if f.rule_id == "C001"]
+
+
+def test_a_speech_line_starting_with_a_dot_is_not_a_forced_heading():
+    script = parse_text("INT. BAR - DAY\n\nRAJU\nNenu vasthanu\n. Suddenga cheppanu\n")
+    assert len(script.scenes) == 1
+    assert not [f for f in lint(script) if f.rule_id == "F001"]
+
+
+def test_a_forced_heading_still_works_after_a_blank_line():
+    script = parse_text("INT. BAR - DAY\n\nHe drinks.\n\n.THE ROOFTOP\n\nRain.\n")
+    assert [sc.heading for sc in script.scenes] == ["INT. BAR - DAY", "THE ROOFTOP"]
+
+
+def test_two_places_sharing_a_long_suffix_are_not_one_set():
+    script = parse_text(
+        "INT. CHITRA'S HOUSE - THE NEXT DAY\n\nx\n\n"
+        "EXT. CHITRA'S OFFICE - THE NEXT DAY\n\ny\n")
+    assert not [f for f in lint(script) if f.rule_id == "C005"]
+
+
+def test_one_place_spelled_two_ways_is_still_location_drift():
+    script = parse_text("INT. FOOD TRUCK - DAY\n\nx\n\nINT. FOODTRUCK - NIGHT\n\ny\n")
+    assert [f for f in lint(script) if f.rule_id == "C005"]

@@ -83,6 +83,17 @@ def similar(a: str, b: str) -> float:
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
+def _differing_core(a: str, b: str) -> tuple[str, str]:
+    """Strip the shared head and tail, returning only what actually differs."""
+    head = 0
+    while head < min(len(a), len(b)) and a[head] == b[head]:
+        head += 1
+    tail = 0
+    while tail < min(len(a), len(b)) - head and a[-1 - tail] == b[-1 - tail]:
+        tail += 1
+    return a[head:len(a) - tail], b[head:len(b) - tail]
+
+
 def _deliberately_distinct(a: str, b: str, thresh: float) -> bool:
     """True when two near-identical cues name different people on purpose.
 
@@ -101,6 +112,16 @@ def _deliberately_distinct(a: str, b: str, thresh: float) -> bool:
         stem_b = nb.group(1) if nb else b
         if similar(stem_a, stem_b) >= thresh:
             return True
+    # A long shared head or tail carries the similarity score on its own.
+    # "CHITRA'S HOUSE - THE NEXT DAY" and "CHITRA'S OFFICE - THE NEXT DAY" are
+    # 88% alike and two sets. When what actually differs is a whole word on both
+    # sides, the difference is the point; when it is punctuation, a possessive,
+    # or nothing at all, the two are one thing spelled two ways.
+    core_a, core_b = _differing_core(a, b)
+    if (len(core_a) >= 3 and len(core_b) >= 3
+            and core_a.strip().isalpha() and core_b.strip().isalpha()
+            and similar(core_a, core_b) < thresh):
+        return True
     ma, mb = RELATIVE_CUE.match(a), RELATIVE_CUE.match(b)
     if not (ma and mb):
         return False
@@ -373,6 +394,11 @@ def location_drift(script: Script, rule: Rule):
     thresh = float(rule.params.get("similarity_threshold", 0.82))
     locations = sorted({_norm_location(s.location) for s in script.scenes if s.location})
     for a, b in combinations(locations, 2):
+        # Places take the same guard cues do: two sluglines that agree except
+        # for one whole word are two places, and "ROOM 1" and "ROOM 2" are two
+        # rooms. Only near-identical spelling of the same name is drift.
+        if _deliberately_distinct(a, b, thresh):
+            continue
         ratio = similar(a, b)
         if thresh <= ratio < 1.0:
             yield finding(

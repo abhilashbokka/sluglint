@@ -174,7 +174,11 @@ def parse_text(text: str, path: str = "<memory>") -> Script:
             paren_depth = 0
             continue
 
-        forced_heading = stripped.startswith(".") and not stripped.startswith("..")
+        # Fountain's forced heading is a '.' on a fresh line. Both guards matter:
+        # a speech that wraps onto a line beginning with an ellipsis or a stray
+        # full stop is dialogue, and reading it as a slugline invents a scene.
+        forced_heading = (stripped.startswith(".") and not stripped.startswith("..")
+                          and prev_blank and in_dialogue_for is None)
         # A shooting-script slugline leads with its scene number ('14 INT. BAR - DAY'),
         # so strip that before asking whether the line is a heading at all.
         unnumbered, _ = split_scene_number(stripped)

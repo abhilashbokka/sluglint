@@ -18,8 +18,13 @@ all; one that lists them applies only to those.
 
 ## Commands
 
+Work inside the project venv. Never install into the system or anaconda Python:
+the extras here (`pdfplumber`, `anthropic`) are the project's, not the machine's.
+
 ```bash
-pip install -e ".[dev]"                          # add ,llm for tier 3
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev,pdf,llm]"                  # dev only: drop pdf and llm
+
 pytest -q                                        # 128 tests, must stay green
 ruff check . && pylint src/sluglint              # must stay clean (10.00/10)
 

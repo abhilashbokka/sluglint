@@ -66,7 +66,8 @@ be, which is why it can publish a recall number and a competitor cannot.
 ## Quickstart
 
 ```bash
-pip install -e ".[dev]"        # add ,llm for the Claude tier, ,pdf for PDF input
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev,pdf,llm]"    # pdf reads PDFs, llm is the Claude tier
 
 sluglint rules                                   # browse all 101 rules
 sluglint lint script.fountain                    # tiers 1+2, free, no API key

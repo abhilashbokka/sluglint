@@ -1,16 +1,16 @@
 [project]
 name = "sluglint"
 version = "0.1.0"
-description = "Sluglint — a rule-cited linter for screenplays (format, consistency, and LLM-judged craft rules)"
+description = "Sluglint: a rule-cited linter for screenplays (format, consistency, and LLM-judged craft rules)"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { text = "PolyForm-Noncommercial-1.0.0" }
 authors = [{ name = "Abhilash Reddy Bokka" }]
 keywords = ["screenplay", "screenwriting", "linter", "fountain", "film", "script"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3",
     "Topic :: Text Processing :: Linguistic",
 ]
@@ -21,8 +21,9 @@ llm = ["anthropic>=0.40"]
 dev = ["pytest>=8.0", "ruff>=0.6", "pylint>=3.2"]
 
 [project.urls]
-Homepage = "https://github.com/ashabhi101/sluglint"
-Issues = "https://github.com/ashabhi101/sluglint/issues"
+Homepage = "https://github.com/abhilashbokka/sluglint"
+Funding = "https://buymeacoffee.com/sluglint"
+Issues = "https://github.com/abhilashbokka/sluglint/issues"
 
 [project.scripts]
 sluglint = "sluglint.cli:main"
@@ -50,7 +51,7 @@ src = ["src", "tests"]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RET"]
 ignore = [
     "E501",    # long lines are readable here; the rulebook prose wraps at 100
-    "B905",    # zip(strict=) — the pairwise walks are intentionally truncating
+    "B905",    # zip(strict=): the pairwise walks are intentionally truncating
     "SIM105",  # contextlib.suppress is not clearer than try/except here
 ]
 
@@ -72,7 +73,7 @@ disable = [
     "line-too-long",
     # Dataclasses model screenplay elements; the field count is the domain.
     "too-many-instance-attributes",
-    # Parser and CLI are flat dispatch by design — splitting them would hide
+    # Parser and CLI are flat dispatch by design. Splitting them would hide
     # the element-classification order that makes the parser readable.
     "too-many-locals",
     "too-many-statements",

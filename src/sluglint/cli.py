@@ -1,8 +1,11 @@
 """CLI.
 
-  sluglint lint  SCRIPT [--profile P] [--llm] [--json OUT] [--rules PATH]
-  sluglint diff  OLD NEW [--profile P] [--llm] [--rules PATH]
-  sluglint rules [--profile P] [--tier N] [--check] [--rules PATH]
+  sluglint lint    SCRIPT [--profile P] [--llm] [--json OUT] [--rules PATH]
+  sluglint diff    OLD NEW [--profile P] [--llm] [--rules PATH]
+  sluglint rules   [--profile P] [--tier N] [--check] [--rules PATH]
+  sluglint convert SCRIPT.pdf [--out FILE]
+
+SCRIPT may be Fountain text or a PDF; the ingester picks the reader.
 
 Exit codes: 0 clean or warnings only, 1 at least one error, 2 bad usage.
 That makes `sluglint lint` usable as a pre-commit or CI gate on a script repo.
@@ -15,19 +18,20 @@ from pathlib import Path
 
 from . import diff as diffmod
 from . import report
+from .ingest import load_script
 from .lint import run_rules, tier3_llm, unimplemented
 from .models import Finding, Script
-from .parser import parse_file
 from .rulebook import Rule, load_rulebook, rules_by_tier
 
 
-def run_lint(script: Script, rules: list[Rule], use_llm: bool) -> tuple[list[Finding], list[str]]:
+def run_lint(script: Script, rules: list[Rule], use_llm: bool,
+             profile: str = "") -> tuple[list[Finding], list[str]]:
     """Tiers 1 and 2 always run (free). Tier 3 only on request."""
     findings = run_rules(script, rules_by_tier(rules, 1))
     findings += run_rules(script, rules_by_tier(rules, 2))
     notices: list[str] = []
     if use_llm:
-        llm_findings, notices = tier3_llm.run(script, rules_by_tier(rules, 3))
+        llm_findings, notices = tier3_llm.run(script, rules_by_tier(rules, 3), profile=profile)
         findings += llm_findings
     else:
         n3 = len(rules_by_tier(rules, 3))
@@ -63,7 +67,27 @@ def main(argv: list[str] | None = None) -> int:
                     help="fail if any tier-1/2 rule has no implementation")
     _add_common(pr)
 
+    pc = sub.add_parser("convert", help="show the Fountain text recovered from a PDF")
+    pc.add_argument("script", type=Path)
+    pc.add_argument("--out", type=Path, default=None, help="write it here instead of stdout")
+
     args = p.parse_args(argv)
+    if args.cmd == "convert":
+        from .ingest.pdf import ingest  # optional dependency, imported on demand
+        try:
+            result = ingest(args.script)
+        except RuntimeError as exc:
+            print(exc, file=sys.stderr)
+            return 2
+        for note in result.notes:
+            print(f"note: {note}", file=sys.stderr)
+        if args.out:
+            args.out.write_text(result.fountain, encoding="utf-8")
+            print(f"{result.pages} PDF pages written to {args.out}", file=sys.stderr)
+        else:
+            print(result.fountain)
+        return 0
+
     book = load_rulebook(args.rules)
     try:
         rules = book.for_profile(args.profile)
@@ -73,9 +97,13 @@ def main(argv: list[str] | None = None) -> int:
     profile = args.profile or book.default_profile
 
     if args.cmd == "lint":
-        script = parse_file(args.script)
-        findings, notices = run_lint(script, rules, args.llm)
-        print(report.render_console(script, findings, notices, profile=profile))
+        try:
+            script, ingest_notes = load_script(args.script)
+        except RuntimeError as exc:
+            print(exc, file=sys.stderr)
+            return 2
+        findings, notices = run_lint(script, rules, args.llm, profile)
+        print(report.render_console(script, findings, ingest_notes + notices, profile=profile))
         if args.json:
             args.json.write_text(report.to_json(script, findings, profile=profile),
                                  encoding="utf-8")
@@ -83,9 +111,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if any(f.severity.value == "error" for f in findings) else 0
 
     if args.cmd == "diff":
-        old_s, new_s = parse_file(args.old), parse_file(args.new)
-        old_f, _ = run_lint(old_s, rules, args.llm)
-        new_f, _ = run_lint(new_s, rules, args.llm)
+        (old_s, _), (new_s, _) = load_script(args.old), load_script(args.new)
+        old_f, _ = run_lint(old_s, rules, args.llm, profile)
+        new_f, _ = run_lint(new_s, rules, args.llm, profile)
         print(report.render_diff_console(diffmod.diff_drafts(old_s, new_s, old_f, new_f)))
         return 0
 

@@ -20,10 +20,12 @@ all; one that lists them applies only to those.
 
 ```bash
 pip install -e ".[dev]"                          # add ,llm for tier 3
-pytest -q                                        # 113 tests, must stay green
+pytest -q                                        # 128 tests, must stay green
 ruff check . && pylint src/sluglint              # must stay clean (10.00/10)
 
 python -m sluglint.cli lint examples/the_last_train.fountain
+python -m sluglint.cli lint script.pdf                  # needs the [pdf] extra
+python -m sluglint.cli convert script.pdf               # inspect the recovered Fountain
 python -m sluglint.cli lint --profile tv-pilot examples/night_shift_pilot.fountain
 python -m sluglint.cli diff examples/the_last_train.fountain examples/the_last_train_v2.fountain
 python -m sluglint.cli rules --tier 2            # browse
@@ -42,6 +44,7 @@ itself skipped. Keep it that way.
 | Path | Role |
 |---|---|
 | `src/sluglint/rulebook.yaml` | THE product. 101 rules + 4 profile definitions, as data. |
+| `src/sluglint/ingest/pdf.py` | PDF to Fountain by margin geometry. Learns the document's own margins, drops printer furniture, refuses PDFs it cannot read. `pdfplumber` behind the `pdf` extra. |
 | `src/sluglint/parser.py` | Fountain-lite → `Script{Scenes[Elements]}`. Forgiving on purpose. Keeps raw lines, extensions, dual markers, scene numbers, act markers. |
 | `src/sluglint/models.py` | Dataclasses. `Finding.fingerprint` powers draft diffing. |
 | `src/sluglint/rulebook.py` | YAML loader, `Rule`, `Profile`, profile filtering. |
@@ -56,7 +59,7 @@ itself skipped. Keep it that way.
 | `src/sluglint/cli.py` | `lint` / `diff` / `rules`. |
 | `examples/` | `clean_pages` (must stay clean), one fixture per profile, the v1 to v2 diff pair. |
 | `benchmark/` | Fault-injection mutators, measured recall, draft-drift demo. `corpus/` is gitignored. |
-| `tests/` | 113 tests. Positive fixture per deterministic rule + clean-script gate. |
+| `tests/` | 128 tests. Positive fixture per deterministic rule + clean-script gate. |
 | `docs/` | Competitive landscape, product and business model, script licensing. |
 
 ## Hard rules for working in this repo
@@ -120,22 +123,23 @@ itself skipped. Keep it that way.
 
 ## Prioritized next steps
 
-1. **Precision measurement.** `benchmark/` already measures recall (97% on
-   injected defects). Precision on real scripts is unmeasured because almost no
-   produced screenplay can legally be redistributed. Closing it needs either a
-   Creative Commons corpus or a human verdict per finding on a private corpus.
-2. **PDF ingestion**: pdfplumber-based extraction using margin positions to
-   classify element types, emitting the same `Script` model. Then FDX (XML -
-   easy). This is the highest-leverage item; PDF is the format scripts actually
-   circulate in.
-3. **Story-bible extraction** (T2.5): one LLM pass building props/story-day/fact
+1. **OCR fallback for PDFs the geometry reader refuses.** Pre-Unicode Indic
+   fonts and scans. Apple Vision (`ocrmac`) does not cover Telugu or
+   Devanagari, so this needs Tesseract `tel`/`hin`, capability-gated the way
+   tier 3 is. See `docs/pdf-ingestion.md`.
+2. **Precision measurement.** `benchmark/` already measures recall (97% on
+   injected defects). Precision on real scripts is spot-checked on a private
+   corpus, not measured at scale. Closing it needs either a Creative Commons
+   corpus or a human verdict per finding.
+3. **FDX ingestion.** XML with element types already named; much easier than PDF.
+4. **Story-bible extraction** (T2.5): one LLM pass building props/story-day/fact
    registries; feed existing tier-2 style checks over that structure.
-4. **Batch + caching for T3**: findings cache keyed by (scene text hash, rule id,
+5. **Batch + caching for T3**: findings cache keyed by (scene text hash, rule id,
    model) so re-lints of unchanged scenes are free.
-5. **FastAPI service** wrapping `run_lint`, then a web UI with an annotated
+6. **FastAPI service** wrapping `run_lint`, then a web UI with an annotated
    script view and accept/dismiss per finding, that feedback loop is the
    labelled data the eval harness wants.
-6. **More profiles**: stage play, radio drama, documentary; more regional
+7. **More profiles**: stage play, radio drama, documentary; more regional
    conventions.
 
 ## Context: why this exists

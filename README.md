@@ -7,7 +7,7 @@ severity, a line number, a source, and a suggested fix. It never offers an
 opinion about whether your story is good.
 
 ![Python](https://img.shields.io/badge/python-3.10+-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-113%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-128%20passing-2ea44f)
 ![Rulebook](https://img.shields.io/badge/rulebook-101%20rules%20as%20data-E8A33D)
 ![Benchmark](https://img.shields.io/badge/injected%20defect%20recall-97%25-2ea44f)
 ![Lint](https://img.shields.io/badge/pylint-10.00%2F10-2ea44f)
@@ -22,8 +22,8 @@ On a film set, the script supervisor catches the errors nobody else sees: the
 character whose name changed spelling on page 40, the scene that is suddenly
 daytime, the prop that was introduced and never came back. Sluglint does that
 pass on your draft in under a second, before anyone else reads it. It reads
-`.fountain` and plain text, and tells you what is wrong, where, why, and which
-rule says so.
+`.fountain`, plain text, and PDF, and tells you what is wrong, where, why, and
+which rule says so.
 
 ```console
 $ sluglint lint the_last_train.fountain
@@ -66,14 +66,16 @@ be, which is why it can publish a recall number and a competitor cannot.
 ## Quickstart
 
 ```bash
-pip install -e ".[dev]"        # add ,llm for the Claude tier
+pip install -e ".[dev]"        # add ,llm for the Claude tier, ,pdf for PDF input
 
 sluglint rules                                   # browse all 101 rules
 sluglint lint script.fountain                    # tiers 1+2, free, no API key
+sluglint lint script.pdf                         # same rules, read from the PDF
 sluglint lint script.fountain --llm --json out.json
 sluglint diff draft1.fountain draft2.fountain    # what did I actually fix?
+sluglint convert script.pdf                      # see what we think the PDF says
 
-pytest -q                                        # 113 tests
+pytest -q                                        # 128 tests
 python benchmark/run.py                          # regenerate the numbers below
 ```
 
@@ -93,7 +95,7 @@ LLM-judged only where nothing else will do.
 
 ```mermaid
 flowchart LR
-    IN[".fountain / .txt<br/><i>PDF and FDX next</i>"] --> P["<b>Parser</b><br/>Fountain-lite,<br/>deliberately forgiving"]
+    IN[".fountain / .txt / .pdf<br/><i>FDX next</i>"] --> P["<b>Parser</b><br/>Fountain-lite,<br/>deliberately forgiving"]
     P --> S["<b>Script model</b><br/>scenes, elements,<br/>character and location registries"]
     RB[("<b>rulebook.yaml</b><br/>101 rules as data<br/>4 profiles")] -.-> T1 & T2 & T3
     S --> T1["<b>Tier 1, Format</b><br/>46 rules, pure code"]
@@ -355,7 +357,7 @@ src/sluglint/
   cli.py                       lint | diff | rules
 benchmark/                     fault injection, measured recall, draft drift
 examples/                      one clean fixture, one per profile, a v1-to-v2 pair
-tests/                         113 tests
+tests/                         128 tests
 docs/                          market, business model, script licensing
 ```
 
@@ -363,8 +365,9 @@ docs/                          market, business model, script licensing
 
 ## Roadmap
 
-- [x] **v0.1** three-tier engine, 101-rule rulebook, 4 profiles, draft diffing, CLI, 113 tests, fault-injection benchmark
-- [ ] PDF and FDX ingestion into the same script model
+- [x] **v0.1** three-tier engine, 101-rule rulebook, 4 profiles, draft diffing, CLI, 128 tests, fault-injection benchmark
+- [x] **PDF ingestion** by margin geometry, feeding the same script model ([docs/pdf-ingestion.md](docs/pdf-ingestion.md))
+- [ ] FDX ingestion, and an OCR fallback for pre-Unicode Indic fonts
 - [ ] A corpus of freely licensed scripts, so precision gets measured the way recall already is
 - [ ] LLM-extracted story bible (props, story days) feeding new tier-2 checks
 - [ ] Findings cache keyed by scene hash, rule, and model, so re-lints of unchanged scenes cost nothing

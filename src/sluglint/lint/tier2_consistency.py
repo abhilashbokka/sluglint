@@ -40,6 +40,17 @@ MONTAGE_CLOSE = re.compile(r"\bEND (?:OF )?(?:MONTAGE|SERIES)\b")
 INTERCUT_OPEN = re.compile(r"\bINTERCUT\b")
 INTERCUT_CLOSE = re.compile(r"\bEND (?:OF )?INTERCUT\b")
 
+# Caps on a sound is standard screenwriting emphasis, and 'a MOAN', 'a THUD'
+# read as props to a rule that only looks for an article. Sound is a department,
+# never a prop, so these are excluded rather than reported and dismissed.
+SOUND_WORDS = {
+    "MOAN", "GROAN", "SCREAM", "SHRIEK", "SHOUT", "YELL", "WHISPER", "GASP",
+    "BANG", "BOOM", "CRASH", "THUD", "CRACK", "SNAP", "CLICK", "CLANG", "CLATTER",
+    "KNOCK", "RATTLE", "RUMBLE", "ROAR", "HISS", "BUZZ", "BEEP", "RING", "CHIME",
+    "SIREN", "HORN", "WHISTLE", "SPLASH", "SLAM", "SQUEAL", "SCREECH", "THUMP",
+    "GUNSHOT", "EXPLOSION", "SILENCE", "LAUGHTER", "APPLAUSE", "FOOTSTEPS",
+}
+
 ABBREVIATIONS = {
     "APT": "APARTMENT", "APTS": "APARTMENTS", "HOSP": "HOSPITAL", "BLDG": "BUILDING",
     "RM": "ROOM", "ST": "STREET", "RD": "ROAD", "AVE": "AVENUE", "BLVD": "BOULEVARD",
@@ -50,8 +61,41 @@ ABBREVIATIONS = {
 }
 
 
+# "CHITRA'S AUNT", "BRIDE'S FATHER": an owner and a relationship. Both
+# apostrophes, because a draft that has been through Final Draft carries the
+# typographic one.
+RELATIVE_CUE = re.compile(r"^(.+?)['\u2019]S\s+(.+)$")
+# 'ORGANIZER 2', 'SENIOR 1', 'COP #3'. The number is the whole point of the cue.
+NUMBERED_CUE = re.compile(r"^(.*?)\s*#?\s*(\d+)$")
+
+
 def similar(a: str, b: str) -> float:
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+
+def _deliberately_distinct(a: str, b: str, thresh: float) -> bool:
+    """True when two near-identical cues name different people on purpose.
+
+    Two shapes cause almost every false name-drift report on a real script.
+    A cast full of "X'S FATHER" and "Y'S FATHER" is normal in a family drama,
+    and those cues are 85% alike by character overlap while naming two
+    different actors; both halves have to match before that pair is drift.
+    Numbered extras are the same problem with a simpler tell.
+    """
+    # 'SENIOR 1' and 'SENIOR 2' are two extras, and so are 'SENIOR' and
+    # 'SENIOR 2'. Cues that agree on everything but a trailing number are the
+    # one case where near-identical spelling means deliberately different people.
+    na, nb = NUMBERED_CUE.match(a), NUMBERED_CUE.match(b)
+    if (na or nb) and (na.group(2) if na else "") != (nb.group(2) if nb else ""):
+        stem_a = na.group(1) if na else a
+        stem_b = nb.group(1) if nb else b
+        if similar(stem_a, stem_b) >= thresh:
+            return True
+    ma, mb = RELATIVE_CUE.match(a), RELATIVE_CUE.match(b)
+    if not (ma and mb):
+        return False
+    return not (similar(ma.group(1), mb.group(1)) >= thresh
+                and similar(ma.group(2), mb.group(2)) >= thresh)
 
 
 def _norm_location(loc: str) -> str:
@@ -100,6 +144,8 @@ def name_drift(script: Script, rule: Rule):
     registry = script.character_registry()
     thresh = float(rule.params.get("similarity_threshold", 0.80))
     for a, b in combinations(sorted(registry), 2):
+        if _deliberately_distinct(a, b, thresh):
+            continue
         ratio = similar(a, b)
         if a in b.split() or b in a.split():  # 'RAJ' inside 'RAJ KUMAR'
             ratio = max(ratio, 0.99)
@@ -433,7 +479,7 @@ def unpaid_prop(script: Script, rule: Rule):
             continue
         for m in PROP.finditer(el.text):
             prop = m.group(1)
-            if len(prop) >= min_length and prop not in registry:
+            if len(prop) >= min_length and prop not in registry and prop.upper() not in SOUND_WORDS:
                 first_seen.setdefault(prop, el)
     for prop, el in first_seen.items():
         # Capitalised once, and the word never appears again in any casing.

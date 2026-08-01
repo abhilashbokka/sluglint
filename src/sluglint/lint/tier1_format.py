@@ -94,6 +94,27 @@ def dialogue_blocks(script: Script) -> list[list[Element]]:
     return out
 
 
+def _paragraphs(script: Script, types: tuple[ElementType, ...]):
+    """Consecutive same-type elements on consecutive lines: one written paragraph.
+
+    A paragraph reaches the parser as one element per printed line, so a
+    bracket opened on one line and closed on the next is balanced. Grouping
+    first is what stops every wrapped aside from reading as a defect.
+    """
+    block: list = []
+    for el in script.elements:
+        continues = (block and el.type in types and el.type == block[-1].type
+                     and el.character == block[-1].character
+                     and el.line_no == block[-1].line_no + 1)
+        if not continues and block:
+            yield block
+            block = []
+        if el.type in types:
+            block.append(el)
+    if block:
+        yield block
+
+
 # ---------------------------------------------------------------- headings
 
 @detector("slugline_prefix")
@@ -229,13 +250,17 @@ def long_parenthetical(script: Script, rule: Rule):
 
 @detector("trailing_parenthetical")
 def trailing_parenthetical(script: Script, rule: Rule):
-    for i, el in enumerate(script.elements):
-        if el.type != ElementType.PARENTHETICAL:
-            continue
+    # A wide parenthetical wraps over several printed lines and arrives here as
+    # several elements. Only the last one has to be followed by speech.
+    position = {id(el): i for i, el in enumerate(script.elements)}
+    for block in _paragraphs(script, (ElementType.PARENTHETICAL,)):
+        last = block[-1]
+        i = position[id(last)]
         nxt = script.elements[i + 1] if i + 1 < len(script.elements) else None
         if nxt is None or nxt.type != ElementType.DIALOGUE:
             yield finding(rule, "Parenthetical has no dialogue after it to modify.",
-                          line_no=el.line_no, scene_index=el.scene_index, evidence=el.text,
+                          line_no=block[0].line_no, scene_index=block[0].scene_index,
+                          evidence=block[0].text,
                           suggestion="Move it above the line it qualifies, or make it action.")
 
 
@@ -362,14 +387,13 @@ def smart_typography(script: Script, rule: Rule):
 def unbalanced_delimiters(script: Script, rule: Rule):
     checked = (ElementType.ACTION, ElementType.DIALOGUE,
                ElementType.PARENTHETICAL, ElementType.CHARACTER)
-    for el in script.elements:
-        if el.type not in checked:
-            continue
+    for block in _paragraphs(script, checked):
+        text = " ".join(el.text for el in block)
         for opener, closer in (("(", ")"), ("[", "]")):
-            if el.text.count(opener) != el.text.count(closer):
-                yield finding(rule, f"Unbalanced '{opener}{closer}' on this line.",
-                              line_no=el.line_no, scene_index=el.scene_index,
-                              evidence=el.text[:80],
+            if text.count(opener) != text.count(closer):
+                yield finding(rule, f"Unbalanced '{opener}{closer}' in this paragraph.",
+                              line_no=block[0].line_no, scene_index=block[0].scene_index,
+                              evidence=text[:80],
                               suggestion="Close the bracket, or delete the stray one.")
                 break
 
@@ -423,19 +447,15 @@ def nonstandard_transition(script: Script, rule: Rule):
 @detector("long_action_block")
 def long_action_block(script: Script, rule: Rule):
     limit = int(rule.params.get("max_lines", 4))
-    run_start, run_len = None, 0
-    for el in script.elements + [None]:  # sentinel flush
-        if el is not None and el.type == ElementType.ACTION:
-            if run_start is None:
-                run_start = el
-            run_len += 1
-        else:
-            if run_start is not None and run_len > limit:
-                yield finding(rule, f"Action block runs {run_len} lines (max {limit}).",
-                              line_no=run_start.line_no, scene_index=run_start.scene_index,
-                              evidence=run_start.text[:80],
-                              suggestion="Break at each new visual beat.")
-            run_start, run_len = None, 0
+    # One paragraph, not every action line between two speeches. Three separate
+    # two-line beats are not a wall of text, and counting across the blank lines
+    # between them reported one on every busy scene.
+    for block in _paragraphs(script, (ElementType.ACTION,)):
+        if len(block) > limit:
+            yield finding(rule, f"Action block runs {len(block)} lines (max {limit}).",
+                          line_no=block[0].line_no, scene_index=block[0].scene_index,
+                          evidence=block[0].text[:80],
+                          suggestion="Break at each new visual beat.")
 
 
 @detector("camera_direction")

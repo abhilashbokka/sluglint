@@ -22,7 +22,13 @@ import pytest
 from sluglint.diff import diff_drafts, diff_findings
 from sluglint.lint import registered_keys, run_rules, unimplemented
 from sluglint.models import ElementType, Finding, Severity
-from sluglint.parser import normalize_character, parse_file, parse_text, split_scene_number
+from sluglint.parser import (
+    normalize_character,
+    parse_file,
+    parse_heading,
+    parse_text,
+    split_scene_number,
+)
 from sluglint.report import render_console, to_json
 from sluglint.rulebook import load_rulebook, load_rules, rules_by_tier
 
@@ -443,3 +449,126 @@ def test_cli_lint_exits_nonzero_on_errors():
     assert main(["lint", str(V1)]) == 1          # V1 has a name-drift error
     assert main(["lint", str(CLEAN)]) == 0       # clean draft, warnings only
     assert main(["rules", "--check"]) == 0
+
+
+# ============================================================ real-script parsing
+# Every case below came from running the linter over produced screenplays and
+# finding that the engine, not the script, was wrong.
+
+def test_contd_with_a_typographic_apostrophe_is_still_an_extension():
+    """Final Draft writes CONT’D. Left unstripped it forks the character."""
+    script = parse_text("INT. BAR - DAY\n\nCHITRA\nOne.\n\nCHITRA (CONT’D)\nTwo.\n")
+    assert set(script.character_registry()) == {"CHITRA"}
+
+
+def test_combined_prefix_parses_in_either_order():
+    _, location, tod = parse_heading("EXT./INT. HILL HOUSE - NIGHT")
+    assert location == "HILL HOUSE" and tod == "NIGHT"
+
+
+def test_forced_action_marker_beats_the_cue_shape():
+    script = parse_text("INT. HOUSE - DAY\n\n!THE KITCHEN\n\nFlour everywhere.\n")
+    assert not script.character_registry()
+    assert script.elements[1].text == "THE KITCHEN"
+
+
+def test_wrapped_parenthetical_stays_one_parenthetical():
+    script = parse_text("INT. YARD - DAY\n\nWIDOW\n(getting on a cart\noutside)\nChalo.\n")
+    kinds = [el.type for el in script.elements[1:]]
+    assert kinds == [ElementType.CHARACTER, ElementType.PARENTHETICAL,
+                     ElementType.PARENTHETICAL, ElementType.DIALOGUE]
+    assert not [f for f in lint(script) if f.rule_id == "F028"]
+
+
+def test_relatives_of_different_people_are_not_name_drift():
+    """'BRIDE'S FATHER' and 'RICHA'S FATHER' are 87% alike and two actors."""
+    script = parse_text("INT. HALL - DAY\n\nBRIDE'S FATHER\nOne.\n\nRICHA'S FATHER\nTwo.\n")
+    assert not [f for f in lint(script) if f.rule_id == "C001"]
+
+
+def test_one_character_spelled_two_ways_is_still_name_drift():
+    script = parse_text("INT. HALL - DAY\n\nRICHA'S FATHER\nOne.\n\nRICHAS FATHER\nTwo.\n")
+    assert [f for f in lint(script) if f.rule_id == "C001"]
+
+
+def test_wall_of_text_counts_one_paragraph_not_a_whole_scene():
+    """Three two-line beats are not a wall of text; six unbroken lines are."""
+    beats = "INT. BAR - DAY\n\na\nb\n\nc\nd\n\ne\nf\n"
+    wall = "INT. BAR - DAY\n\na\nb\nc\nd\ne\nf\n"
+    assert not [f for f in lint(parse_text(beats)) if f.rule_id == "F004"]
+    assert [f for f in lint(parse_text(wall)) if f.rule_id == "F004"]
+
+
+# ============================================================ PDF ingestion
+# pdfplumber is imported lazily, so the geometry can be tested without it.
+
+def _row(text, x0, top, page=1, width=None):
+    from sluglint.ingest.pdf import Line
+    return Line(text, x0, x0 + (width if width is not None else len(text) * 6), top, page)
+
+
+def test_geometry_classifies_by_indent_not_by_shape():
+    from sluglint.ingest.pdf import _classify
+    rows = {
+        "heading": _row("INT. CAR - DAY", 108, 100),
+        "action": _row("He waits.", 108, 120),
+        "character": _row("PRASHANT", 252, 140),
+        "parenthetical": _row("(beat)", 180, 160),
+        "dialogue": _row("Ikkada right ah?", 180, 180),
+    }
+    for expected, row in rows.items():
+        assert _classify(row, 108.0, 792.0, 540.0) == expected
+
+
+def test_a_speaker_written_as_a_parenthetical_is_read_as_the_speaker():
+    """At cue depth, '(VOICE ON THE PHONE)' is who is talking."""
+    from sluglint.ingest.pdf import _classify
+    assert _classify(_row("(VOICE ON THE PHONE)", 252, 140), 108.0, 792.0, 540.0) == "character"
+
+
+def test_page_furniture_is_dropped():
+    from sluglint.ingest.pdf import _classify
+    assert _classify(_row("42.", 500, 30), 108.0, 792.0, 540.0) == "drop"
+    assert _classify(_row("(MORE)", 180, 700), 108.0, 792.0, 540.0) == "drop"
+
+
+def test_action_margin_is_the_leftmost_column_not_the_commonest():
+    """Dialogue outnumbers action in plenty of scripts; the margin is still action's."""
+    from sluglint.ingest.pdf import _action_margin
+    rows = [_row("x", 108, i) for i in range(10)] + [_row("y", 180, i) for i in range(30)]
+    assert _action_margin(rows) == 108.0
+
+
+def test_legacy_indic_font_output_is_flagged_as_unreadable():
+    from sluglint.ingest.pdf import text_confidence
+    good = [_row("The WIDOW walks up to the room with an axe in one hand", 96, i)
+            for i in range(20)]
+    mojibake = [_row("lhfu;j jSfxax ^j.kNksM+nkl L;keynkl BIik yxk yks", 96, i)
+                for i in range(20)]
+    assert text_confidence(good) > 0.95
+    assert text_confidence(mojibake) < 0.5
+
+
+def test_split_speech_is_rejoined_across_a_page_break():
+    from sluglint.ingest.pdf import _emit
+    typed = [("character", _row("VIVEK", 252, 100, page=1)),
+             ("dialogue", _row("Aagu.", 180, 120, page=1)),
+             ("character", _row("VIVEK (CONT’D)", 252, 100, page=2)),
+             ("dialogue", _row("Thini po.", 180, 120, page=2))]
+    out, rejoined = _emit(typed)
+    assert rejoined == 1
+    assert out.count("VIVEK") == 1
+
+
+def test_numbered_extras_are_not_name_drift():
+    """'SENIOR 1' and 'SENIOR 2' are two actors, not one misspelled."""
+    script = parse_text("INT. YARD - DAY\n\nSENIOR 1\nOne.\n\nSENIOR 2\nTwo.\n\nSENIOR\nThree.\n")
+    assert not [f for f in lint(script) if f.rule_id == "C001"]
+
+
+def test_a_capitalised_sound_is_not_an_unpaid_prop():
+    action = ("INT. HOUSE - NIGHT\n\nHe yanks the chain and a MOAN comes from "
+              "under the roots.\n")
+    prop = "INT. HOUSE - NIGHT\n\nShe puts a LOCKET on the table and leaves.\n"
+    assert not [f for f in lint(parse_text(action)) if f.rule_id == "C026"]
+    assert [f for f in lint(parse_text(prop)) if f.rule_id == "C026"]

@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Lint (pylint)
+        run: pylint src/sluglint
+      - name: Test
+        run: pytest -q
+      - name: Every rule resolves to an implementation
+        run: |
+          for profile in us-spec-feature tv-pilot shooting-script indian-regional; do
+            python -m sluglint.cli rules --check --profile "$profile"
+          done
+      - name: Lint the fixtures end to end
+        run: |
+          python -m sluglint.cli lint examples/clean_pages.fountain
+          python -m sluglint.cli lint --profile tv-pilot examples/night_shift_pilot.fountain
+          python -m sluglint.cli lint --profile indian-regional examples/nadi_regional.fountain
+          python -m sluglint.cli diff examples/the_last_train.fountain examples/the_last_train_v2.fountain
+
+  rulebook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: README badges match the rulebook
+        run: |
+          python - <<'PY'
+          import re, pathlib, yaml
+          book = yaml.safe_load(pathlib.Path("rules/rulebook.yaml").read_text())
+          readme = pathlib.Path("README.md").read_text()
+          n_rules = len(book["rules"])
+          claimed = int(re.search(r"rulebook-(\d+)%20rules", readme).group(1))
+          assert claimed == n_rules, f"README badge says {claimed} rules, rulebook has {n_rules}"
+          print(f"OK: {n_rules} rules")
+          PY

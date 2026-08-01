@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+out.json
+.env
+
+# local research / scratch — never publish
+*.pdf
+.DS_Store
+.venv/
+venv/
+.ruff_cache/

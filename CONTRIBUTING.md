@@ -1,0 +1,87 @@
+# Contributing to Sluglint
+
+The product is `rules/rulebook.yaml`. Most contributions are rules, not code.
+
+## Setup
+
+```bash
+pip install -e ".[dev]"      # add ,llm for the tier-3 judge
+pytest -q                    # 113 tests
+ruff check . && pylint src/sluglint
+```
+
+## Branching
+
+`main` is protected and always releasable. `develop` is the integration branch.
+
+```
+main ──────────────●──────────────●   tagged releases
+                  ╱              ╱
+develop ──●──●───●──────●──●────●     integration
+          ╱      ╱       ╱     ╱
+  feat/rule-c028   fix/f014-dash      short-lived branches
+```
+
+Branch from `develop`, open a PR back into `develop`. Release PRs go
+`develop → main`. Branch names: `feat/…`, `fix/…`, `rule/…`, `docs/…`.
+
+## Adding a rule
+
+**Tier 3 (LLM-judged) needs zero Python.** Add the rule to `rules/rulebook.yaml`
+with a `principle`, a `source`, and one or two `examples` — the judge builds its
+rubric from the YAML.
+
+**Tier 1 and 2 need a handler.** Add a `detect:` key to the rule, then register
+a generator for it:
+
+```python
+@detector("my_new_check")
+def my_new_check(script: Script, rule: Rule):
+    limit = int(rule.params.get("max_thing", 3))   # read thresholds from the rule
+    for sc in script.scenes:
+        if ...:
+            yield finding(rule, f"...{limit}...", line_no=sc.line_no,
+                          scene_index=sc.index, evidence=sc.heading,
+                          suggestion="...")
+```
+
+Then add a positive fixture to `SNIPPETS` in `tests/test_sluglint.py`. A rule
+with no fixture fails `test_snippet_coverage_is_complete` — a rule that cannot
+be made to fire is decoration.
+
+## The four rules that are not negotiable
+
+1. **Never reproduce text from screenwriting books.** `principle:` fields are
+   original formulations. `source:` attributes where the idea is taught. Quoted
+   book content is a copyright problem and will be rejected.
+2. **Precision over recall.** A linter that cries wolf gets uninstalled. Every
+   new tier-1/2 rule must leave `examples/clean_pages.fountain` at zero errors
+   and zero warnings. Prefer a narrow check that anchors on a second signal (an
+   age parenthetical, an article before a capitalised prop, a known cue name)
+   over a broad one that flags every capitalised word.
+3. **Rules are data.** Thresholds live in `params:`, never as constants in
+   Python. Severity, name, and principle live in the YAML.
+4. **Scope boundary.** Sluglint checks the screenplay as a *document*. It does
+   not judge plot logic, premise, theme, or story quality. Rules that need that
+   judgement do not belong here, whatever their severity.
+
+## Fingerprint stability
+
+`Finding.fingerprint` deliberately excludes line numbers so a note survives text
+moving to another page. Script-level metric findings must use a **fixed**
+evidence string — counts go in `message`, never in `evidence` — or every re-lint
+looks like a brand new finding and the draft diff churns.
+`test_metric_findings_keep_a_stable_fingerprint` guards this.
+
+## Profiles
+
+A rule with no `profiles:` key applies to every profile. A rule that lists them
+applies only to those. This is how one rulebook holds both "scene numbers are an
+amateur tell" (spec) and "scene numbers are mandatory" (shooting script) without
+either becoming a special case in code.
+
+## Security
+
+No API keys, tokens, or personal data in code, fixtures, or git history — ever.
+Configuration is via environment variables only (`ANTHROPIC_API_KEY`,
+`SLUGLINT_MODEL`).

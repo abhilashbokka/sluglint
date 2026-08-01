@@ -1,0 +1,1347 @@
+# Sluglint — rulebook v0.1 (101 rules)
+#
+# THE PRODUCT LIVES HERE. Every rule is DATA, not code.
+#
+# Fields
+#   id:        stable identifier. F = format, C = consistency, S = structure/craft,
+#              L = language. IDs are permanent; never renumber a shipped rule.
+#   tier:      1 = deterministic code, 2 = consistency engine over parsed structure,
+#              3 = LLM rubric judge
+#   category:  format | consistency | craft | structure | language | production
+#   severity:  error | warning | suggestion
+#   principle: OUR OWN original formulation of the rule. Never quoted book text.
+#   source:    attribution for where the underlying convention is taught. These are
+#              inspirations, not citations of reproduced content.
+#   detect:    (tier 1/2) key the engine dispatches on. One handler per key.
+#   params:    (tier 1/2) thresholds. Never hardcode these in Python.
+#   examples:  (tier 3) few-shot violates/acceptable pairs fed to the judge prompt.
+#   profiles:  which script profiles the rule applies to. OMITTED = applies to all.
+#
+# Attribution key
+#   Trottier  = David Trottier, "The Screenwriter's Bible" (formatting conventions)
+#   Riley     = Christopher Riley, "The Hollywood Standard" (formatting conventions)
+#   Field     = Syd Field, "Screenplay" (three-act paradigm)
+#   McKee     = Robert McKee, "Story" (craft principles)
+#   Snyder    = Blake Snyder, "Save the Cat!" (beats, audience empathy)
+#   Goldman   = William Goldman, "Adventures in the Screen Trade" (scene economy)
+#   SpecConv  = widely documented US spec-script conventions (public knowledge)
+#   ProdConv  = widely documented production / breakdown practice
+#   TVConv    = widely documented US television script conventions
+#   INConv    = widely documented Indian film industry script conventions
+
+profiles:
+  us-spec-feature:
+    name: US spec feature
+    default: true
+    description: >
+      A feature screenplay written on spec for the US market. No scene numbers,
+      no camera direction, 90-120 pages.
+  tv-pilot:
+    name: US television pilot
+    description: >
+      A half-hour or one-hour pilot. Act structure is expected; page bands and
+      cold-open/teaser conventions replace the feature length rules.
+  shooting-script:
+    name: Shooting script
+    description: >
+      A production draft. Scene numbers are REQUIRED, camera direction is
+      permitted, and continuity checks matter more than craft polish.
+  indian-regional:
+    name: Indian / regional feature
+    description: >
+      A feature for the Indian market (Telugu, Hindi, Tamil, and others).
+      Longer page bands, song sequences, an INTERVAL marker, and code-mixed
+      dialogue are conventional rather than defects.
+
+rules:
+
+  # =====================================================================
+  # TIER 1 — DETERMINISTIC FORMAT LINT
+  # Pure code over the parse. 100% precision by construction.
+  # =====================================================================
+
+  # ---- scene headings -------------------------------------------------
+  - id: F001
+    name: Malformed or missing slugline prefix
+    tier: 1
+    category: format
+    severity: error
+    detect: slugline_prefix
+    principle: >
+      Every scene heading must begin with INT., EXT., or INT./EXT. so readers
+      and schedulers instantly know where the camera is.
+    source: Trottier; Riley; SpecConv
+
+  - id: F002
+    name: Scene heading missing time of day
+    tier: 1
+    category: format
+    severity: warning
+    detect: missing_time_of_day
+    principle: >
+      A slugline should end with a time marker (DAY, NIGHT, CONTINUOUS, ...)
+      after a spaced hyphen; production planning depends on it.
+    source: Trottier; SpecConv
+
+  - id: F010
+    name: Scene heading not in uppercase
+    tier: 1
+    category: format
+    severity: warning
+    detect: heading_not_uppercase
+    principle: >
+      Scene headings are set in full capitals. A lowercase heading breaks the
+      visual scan that lets a reader find the top of a scene at a glance.
+    source: Trottier; Riley; SpecConv
+
+  - id: F011
+    name: Non-standard time-of-day token
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: nonstandard_time_of_day
+    principle: >
+      Time markers should come from the conventional set (DAY, NIGHT, DAWN,
+      DUSK, MORNING, EVENING, CONTINUOUS, LATER, SAME). Invented markers
+      break automated breakdowns even when a human understands them.
+    source: Riley; ProdConv
+
+  - id: F012
+    name: Scene heading with no location
+    tier: 1
+    category: format
+    severity: error
+    detect: empty_location
+    principle: >
+      A heading must name a place between the prefix and the time marker. A
+      heading of just INT. - DAY tells nobody where the scene happens.
+    source: Trottier; SpecConv
+
+  - id: F013
+    name: Overlong scene heading
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: overlong_heading
+    params: {max_chars: 60}
+    principle: >
+      A heading names a place, not a situation. Description that runs past
+      roughly sixty characters belongs in the action line underneath it.
+    source: Riley; ProdConv
+
+  - id: F014
+    name: Non-standard scene heading separator
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: heading_separator
+    principle: >
+      Heading segments are divided by a spaced hyphen. Unspaced hyphens, en
+      dashes, and commas defeat the parsers that build shooting schedules.
+    source: Riley; ProdConv
+
+  - id: F015
+    name: Duplicate consecutive scene heading
+    tier: 1
+    category: format
+    severity: warning
+    detect: duplicate_consecutive_heading
+    principle: >
+      Two identical headings back to back are one scene that got split by a
+      stray line break, or a paste error. Either way it inflates the scene
+      count and the schedule.
+    source: ProdConv
+
+  # ---- dialogue blocks ------------------------------------------------
+  - id: F003
+    name: Orphaned character cue
+    tier: 1
+    category: format
+    severity: error
+    detect: orphan_cue
+    principle: >
+      A character cue must be followed by dialogue (or a parenthetical plus
+      dialogue). A cue with nothing under it is a formatting defect.
+    source: SpecConv
+
+  - id: F016
+    name: Unbroken dialogue block
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: long_dialogue_block
+    params: {max_lines: 6}
+    principle: >
+      A speech that runs many lines without a beat, an interruption, or a
+      break reads as a monologue on the page whether or not it plays as one.
+      Break it or motivate its length.
+    source: Trottier; McKee
+
+  - id: F017
+    name: Overlong parenthetical
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: long_parenthetical
+    params: {max_words: 5}
+    principle: >
+      A parenthetical is a short qualifier, not a stage direction. Anything
+      past a few words is action and belongs on its own line.
+    source: Trottier; Riley
+
+  - id: F018
+    name: Parenthetical after the final line of dialogue
+    tier: 1
+    category: format
+    severity: warning
+    detect: trailing_parenthetical
+    principle: >
+      A parenthetical modifies the dialogue that follows it. One left dangling
+      after the last line of a speech modifies nothing.
+    source: Riley; SpecConv
+
+  - id: F019
+    name: Consecutive cues for the same character
+    tier: 1
+    category: format
+    severity: warning
+    detect: consecutive_same_cue
+    principle: >
+      The same character cued twice in a row with no intervening action or
+      other speaker is a split that should be one speech, or a missing beat.
+    source: SpecConv
+
+  - id: F020
+    name: Character cue carrying a description
+    tier: 1
+    category: format
+    severity: warning
+    detect: cue_with_description
+    principle: >
+      A cue is a name plus an optional extension in parentheses. Appositives
+      and job titles inside the cue ("JOHN, THE BARBER") fragment the
+      character registry that every downstream breakdown depends on.
+    source: Trottier; ProdConv
+
+  - id: F021
+    name: Non-standard character extension
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: nonstandard_extension
+    principle: >
+      Extensions are drawn from a small conventional set: V.O., O.S., O.C.,
+      CONT'D, and combinations of them. Spelled-out or invented extensions
+      are read as part of the name by parsing software.
+    source: Riley; SpecConv
+
+  - id: F022
+    name: Dual-dialogue marker without a partner
+    tier: 1
+    category: format
+    severity: error
+    detect: orphan_dual_dialogue
+    principle: >
+      A dual-dialogue marker declares that this speech is simultaneous with
+      the one immediately before it. With no preceding speech there is
+      nothing to be simultaneous with.
+    source: SpecConv
+
+  - id: F023
+    name: Probable character cue written in mixed case
+    tier: 1
+    category: format
+    severity: warning
+    detect: probable_lowercase_cue
+    principle: >
+      A line that carries a known character's name, stands alone, and is
+      followed by speech is a cue that lost its capitals. Left as is, that
+      character's lines silently vanish from the registry.
+    source: SpecConv
+
+  # ---- document hygiene ----------------------------------------------
+  - id: F024
+    name: Empty scene
+    tier: 1
+    category: format
+    severity: warning
+    detect: empty_scene
+    principle: >
+      A heading with no action and no dialogue under it is a placeholder that
+      escaped into the draft. It still costs a scene number and a schedule row.
+    source: ProdConv
+
+  - id: F025
+    name: Pagination artifacts from a converted draft
+    tier: 1
+    category: format
+    severity: warning
+    detect: pagination_artifacts
+    principle: >
+      (MORE), a bare (CONT'D) on its own line, CONTINUED:, and stray page
+      numbers are artifacts of pagination. When they survive a PDF or
+      production-draft conversion they corrupt the next repagination.
+    source: ProdConv
+
+  - id: F026
+    name: Tabs or exotic whitespace in the source
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: whitespace_artifacts
+    principle: >
+      Screenplay layout comes from margins, not from tabs or non-breaking
+      spaces. Embedded whitespace characters shift elements unpredictably
+      when the file moves between programs.
+    source: ProdConv
+
+  - id: F027
+    name: Typographic characters production software mishandles
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: smart_typography
+    principle: >
+      Curly quotes, en and em dashes, and single-glyph ellipses are inserted
+      by word processors and are still mangled by parts of the production
+      chain. Straight quotes and plain hyphens travel safely.
+    source: ProdConv
+
+  - id: F028
+    name: Unbalanced brackets or quotes
+    tier: 1
+    category: format
+    severity: warning
+    detect: unbalanced_delimiters
+    principle: >
+      An unclosed parenthesis or bracket means an edit was interrupted. It
+      also silently swallows an extension or a parenthetical when the file is
+      parsed.
+    source: SpecConv
+
+  - id: F029
+    name: Incomplete title page
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: title_page_incomplete
+    params: {required: [title, author, contact], min_pages: 5}
+    principle: >
+      A submitted script carries a title, a byline, and a way to reach the
+      writer. A draft that circulates without contact information cannot be
+      followed up on.
+    source: Trottier; SpecConv
+
+  - id: F030
+    name: Missing opening marker
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: missing_fade_in
+    params: {min_pages: 5}
+    principle: >
+      Convention opens a screenplay with FADE IN: (or an equivalent opening
+      marker). Starting cold on a slugline reads as an excerpt rather than a
+      complete draft.
+    source: Trottier; SpecConv
+
+  - id: F031
+    name: Non-standard transition token
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: nonstandard_transition
+    principle: >
+      Transitions come from a small documented set (CUT TO:, DISSOLVE TO:,
+      SMASH CUT TO:, MATCH CUT TO:, FADE OUT.). Invented transitions read as
+      direction rather than punctuation.
+    source: Riley; SpecConv
+
+  # ---- style metrics --------------------------------------------------
+  - id: F004
+    name: Wall-of-text action block
+    tier: 1
+    category: format
+    severity: warning
+    detect: long_action_block
+    params: {max_lines: 4}
+    principle: >
+      Action paragraphs longer than about four lines read as a wall of text
+      and slow the read; break them at each new visual beat.
+    source: Trottier; SpecConv
+
+  - id: F005
+    name: Camera direction in a spec script
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: camera_direction
+    profiles: [us-spec-feature, tv-pilot, indian-regional]
+    principle: >
+      Spec scripts should not direct the camera (ANGLE ON, CLOSE UP, PAN,
+      ZOOM, DOLLY). Describe what we see; let the director shoot it.
+    source: Trottier; SpecConv
+
+  - id: F006
+    name: Transition overuse
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: transition_overuse
+    params: {max_per_10_scenes: 3}
+    principle: >
+      In a modern spec, a cut is implied between scenes. Frequent CUT TO:
+      style transitions are noise; reserve them for deliberate effect.
+    source: Trottier; SpecConv
+
+  - id: F007
+    name: Parenthetical overuse
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: parenthetical_overuse
+    params: {max_ratio: 0.30, min_cues: 10}
+    principle: >
+      If a large share of dialogue blocks carry actor direction in
+      parentheses, the dialogue is not doing its job; the line itself should
+      imply its delivery.
+    source: Trottier; McKee
+
+  - id: F008
+    name: Feature length outside the standard band
+    tier: 1
+    category: format
+    severity: warning
+    detect: page_count
+    params: {min_pages: 85, max_pages: 125}
+    profiles: [us-spec-feature, shooting-script]
+    principle: >
+      A feature spec is expected to land roughly between 90 and 120 pages at
+      one page per minute of screen time; well outside that band invites an
+      automatic pass.
+    source: Field; SpecConv
+
+  - id: F009
+    name: Scene numbers in a spec draft
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: scene_numbers
+    profiles: [us-spec-feature, tv-pilot, indian-regional]
+    principle: >
+      Scene numbers belong to shooting scripts. A spec draft with numbered
+      sluglines signals an amateur or a repurposed production draft.
+    source: Trottier; SpecConv
+
+  - id: F032
+    name: ALL-CAPS overuse in action
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: caps_overuse
+    params: {max_ratio: 0.15, min_action_lines: 20}
+    principle: >
+      Capitals mark a first appearance, a sound, or a key prop. Used on
+      ordinary emphasis they stop marking anything, and the reader's eye
+      loses the signal it was trained to catch.
+    source: Trottier; Riley
+
+  - id: F033
+    name: Exclamation-mark overuse
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: exclamation_overuse
+    params: {max_per_page: 2.0, min_pages: 5}
+    principle: >
+      Volume on the page is not intensity on the screen. Exclamation marks
+      scattered through action and dialogue direct performance the writer
+      does not control.
+    source: Trottier
+
+  - id: F034
+    name: Ellipsis overuse in dialogue
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: ellipsis_overuse
+    params: {max_ratio: 0.20, min_lines: 20}
+    principle: >
+      An ellipsis marks a trail-off. On a large share of lines it becomes a
+      verbal tic shared by every character, which flattens them all.
+    source: SpecConv
+
+  - id: F035
+    name: Reader address in action lines
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: reader_address
+    principle: >
+      Action describes the frame, not the act of watching it. "We see", "we
+      hear", and "the camera finds" put a narrator between the reader and
+      the image.
+    source: Trottier; McKee
+
+  - id: F036
+    name: Dialogue-to-action balance outside the normal band
+    tier: 1
+    category: production
+    severity: suggestion
+    detect: dialogue_ratio
+    params: {min_ratio: 0.20, max_ratio: 0.70, min_lines: 100}
+    principle: >
+      The share of the page given to speech is a measurable property of a
+      draft. Far outside the usual band it signals a script that is either a
+      radio play or a silent film, and it is worth knowing on purpose.
+    source: ProdConv
+
+  - id: F037
+    name: Scene density outside the normal band
+    tier: 1
+    category: production
+    severity: suggestion
+    detect: scene_density
+    params: {min_per_page: 0.3, max_per_page: 2.0, min_pages: 10}
+    principle: >
+      Scenes per page is a proxy for cutting rhythm and for company moves. An
+      unusually high or low count is not wrong, but it should be a decision
+      rather than an accident.
+    source: ProdConv
+
+  - id: F038
+    name: Emphasis markup in action
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: emphasis_markup
+    params: {max_count: 10}
+    principle: >
+      Bold, italic, and underline are inconsistently supported across the
+      production chain and read as an author shouting. Capitals and sentence
+      structure carry emphasis that survives every conversion.
+    source: Riley; ProdConv
+
+  # ---- profile: shooting script --------------------------------------
+  - id: F039
+    name: Shooting script without scene numbers
+    tier: 1
+    category: production
+    severity: error
+    detect: missing_scene_numbers
+    profiles: [shooting-script]
+    principle: >
+      A production draft is referenced by scene number in every department,
+      call sheet, and continuity report. Unnumbered scenes make the draft
+      unusable on a set.
+    source: ProdConv
+
+  - id: F040
+    name: Scene numbers duplicated or out of sequence
+    tier: 1
+    category: production
+    severity: error
+    detect: scene_number_sequence
+    profiles: [shooting-script]
+    principle: >
+      Scene numbers must be unique and ascending. Inserted scenes take letter
+      suffixes (14A) rather than renumbering, because every department's
+      paperwork is already keyed to the old numbers.
+    source: ProdConv
+
+  # ---- profile: TV pilot ----------------------------------------------
+  - id: F041
+    name: Pilot missing act structure markers
+    tier: 1
+    category: structure
+    severity: warning
+    detect: missing_act_markers
+    profiles: [tv-pilot]
+    principle: >
+      A television script is delivered in labelled acts (COLD OPEN or TEASER,
+      then ACT ONE onward). Without the labels the script cannot be timed
+      against a broadcast or platform format.
+    source: TVConv
+
+  - id: F042
+    name: Act length imbalance
+    tier: 1
+    category: structure
+    severity: suggestion
+    detect: act_length_balance
+    params: {max_ratio: 2.5}
+    profiles: [tv-pilot]
+    principle: >
+      Acts in a pilot run to roughly comparable lengths. One act several
+      times the size of another usually means an act break landed in the
+      wrong place rather than that the story demanded it.
+    source: TVConv
+
+  - id: F043
+    name: Pilot length outside the format band
+    tier: 1
+    category: format
+    severity: warning
+    detect: pilot_page_count
+    params: {half_hour: [22, 40], hour: [45, 70], split_at: 42}
+    profiles: [tv-pilot]
+    principle: >
+      Half-hour and one-hour pilots have distinct expected page bands. A
+      draft between the two bands, or outside both, cannot be slotted into
+      either format without a rewrite.
+    source: TVConv
+
+  # ---- profile: Indian / regional -------------------------------------
+  - id: F044
+    name: Song sequence not marked as a formatted block
+    tier: 1
+    category: format
+    severity: warning
+    detect: song_cue_format
+    profiles: [indian-regional]
+    principle: >
+      A song sequence is a production unit with its own schedule, unit, and
+      budget line. It must be marked as a labelled block (SONG:, SONG
+      SEQUENCE, or an equivalent header) rather than buried in action.
+    source: INConv; ProdConv
+
+  - id: F045
+    name: INTERVAL marker missing or badly placed
+    tier: 1
+    category: structure
+    severity: suggestion
+    detect: interval_marker
+    params: {expected_at: 0.5, tolerance: 0.12}
+    profiles: [indian-regional]
+    principle: >
+      A theatrical feature for the Indian market carries an INTERVAL near the
+      midpoint, and the beat before it is written to carry the audience back
+      after the break. A missing or badly placed marker means the structure
+      was not planned around it.
+    source: INConv
+
+  - id: F046
+    name: Character cue mixing writing systems
+    tier: 1
+    category: consistency
+    severity: warning
+    detect: mixed_script_cue
+    profiles: [indian-regional]
+    principle: >
+      A code-mixed draft may set cues in Latin or in a native script, but it
+      must pick one. The same character cued in two writing systems becomes
+      two characters in every breakdown.
+    source: INConv; ProdConv
+
+  # =====================================================================
+  # TIER 2 — CONSISTENCY ENGINE
+  # Registries, timeline, fuzzy matching over the parsed structure.
+  # =====================================================================
+
+  # ---- character identity ---------------------------------------------
+  - id: C001
+    name: Character name drift
+    tier: 2
+    category: consistency
+    severity: error
+    detect: name_drift
+    params: {similarity_threshold: 0.80}
+    principle: >
+      One character, one spelling. Near-identical cue names (JON vs JOHN,
+      RAJU vs RAJ) almost always mean typo drift between drafts, and they
+      fracture every downstream breakdown.
+    source: SpecConv; ProdConv
+
+  - id: C002
+    name: Vanishing character
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: vanishing_character
+    params: {min_scenes: 3, last_seen_before: 0.65}
+    principle: >
+      A character established across several scenes who silently disappears
+      for the final act is usually an unresolved thread from a rewrite.
+    source: McKee (causality of setups and payoffs)
+
+  - id: C003
+    name: Speaking character never introduced in action
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: uninitialized_character
+    principle: >
+      A character should be introduced in an action line (name in CAPS at
+      first appearance, ideally with age/essence) before their first line of
+      dialogue; otherwise the reader meets a voice with no body.
+    source: Trottier; SpecConv
+
+  - id: C006
+    name: Named character with a single line
+    tier: 2
+    category: consistency
+    severity: suggestion
+    detect: single_use_character
+    principle: >
+      Naming a character tells the reader (and casting) to remember them. A
+      one-line walk-on is usually better served by a role name (WAITER,
+      NURSE).
+    source: SpecConv; ProdConv
+
+  - id: C007
+    name: Character re-introduced as if new
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: duplicate_introduction
+    principle: >
+      A character gets one capitalised introduction. A second one, pages
+      later, means two passes of the draft each thought they were meeting
+      this person first.
+    source: Trottier; SpecConv
+
+  - id: C008
+    name: Named in action but never heard from
+    tier: 2
+    category: consistency
+    severity: suggestion
+    detect: orphan_mention
+    principle: >
+      A name introduced in capitals promises a person the reader should
+      track. One who never speaks and never returns is either a rewrite
+      orphan or should be an unnamed role.
+    source: McKee (setup and payoff, reworded); ProdConv
+
+  - id: C012
+    name: Name drift between action lines and cues
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: action_name_drift
+    params: {similarity_threshold: 0.80}
+    principle: >
+      The spelling in the action line and the spelling in the cue must match
+      exactly. A character called MEERA in cues and "Meerah" in action reads
+      fine and breaks every script-to-schedule tool.
+    source: ProdConv
+
+  - id: C013
+    name: Age stated two different ways
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: age_drift
+    principle: >
+      A character's stated age is a casting instruction. Two different
+      answers in the same draft leave casting to guess which one survived the
+      last rewrite.
+    source: ProdConv
+
+  - id: C017
+    name: Character heard only in voice-over
+    tier: 2
+    category: consistency
+    severity: suggestion
+    detect: vo_only_character
+    principle: >
+      A character who exists only as a voice-over is a deliberate choice or a
+      scene that got cut. Flagging it makes the choice explicit before a
+      casting breakdown treats them as an on-camera role.
+    source: ProdConv
+
+  - id: C018
+    name: Extension drift inside one scene
+    tier: 2
+    category: consistency
+    severity: suggestion
+    detect: extension_drift
+    principle: >
+      Within a single scene a character is either present, off screen, or on
+      a voice-over. Switching between extensions with no action to justify
+      the move is a continuity error rather than a choice.
+    source: Riley; ProdConv
+
+  - id: C020
+    name: Speaking cast size relative to length
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: cast_size
+    params: {max_speaking_per_page: 0.6, min_pages: 20}
+    principle: >
+      Every speaking part is a contract, a fitting, and a day on a call
+      sheet. A speaking cast that grows faster than the page count is a
+      budget fact worth surfacing while it is still cheap to fix.
+    source: ProdConv
+
+  - id: C024
+    name: Lead absent for a long stretch
+    tier: 2
+    category: structure
+    severity: suggestion
+    detect: lead_absence_gap
+    params: {max_gap_ratio: 0.25, min_scenes: 8}
+    principle: >
+      The character with the most dialogue disappearing for a quarter of the
+      script is measurable, not a matter of taste. It is usually a subplot
+      that grew during a rewrite.
+    source: Field; ProdConv
+
+  - id: C025
+    name: Dialogue share imbalance
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: dialogue_share
+    params: {max_share: 0.45, min_speakers: 4, min_lines: 40}
+    principle: >
+      One character holding most of the lines in an ensemble is a structural
+      fact with casting consequences. It may be the design; it should not be
+      a surprise.
+    source: ProdConv
+
+  # ---- place and time --------------------------------------------------
+  - id: C004
+    name: Day/night whiplash
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: day_night_whiplash
+    principle: >
+      Consecutive scenes that flip DAY -> NIGHT -> DAY at the same location
+      without a time cue usually indicate a continuity error rather than an
+      intended time jump.
+    source: ProdConv (continuity practice)
+
+  - id: C005
+    name: Location name inconsistency
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: location_drift
+    params: {similarity_threshold: 0.82}
+    principle: >
+      The same physical place must keep the same slugline name for the whole
+      script; near-duplicate location strings split one set into two.
+    source: ProdConv (breakdown practice)
+
+  - id: C009
+    name: Same location shot both INT. and EXT.
+    tier: 2
+    category: consistency
+    severity: suggestion
+    detect: int_ext_conflict
+    principle: >
+      A location that appears as both an interior and an exterior is either
+      two different sets sharing a name, or one set that needs INT./EXT. on
+      both headings. Left alone it is scheduled twice.
+    source: ProdConv
+
+  - id: C010
+    name: CONTINUOUS across a location change
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: continuous_across_locations
+    principle: >
+      CONTINUOUS means the action runs unbroken from the previous scene. Used
+      across an unrelated location it asserts a continuity that the geography
+      does not support.
+    source: Riley; ProdConv
+
+  - id: C011
+    name: Consecutive scenes that should be one
+    tier: 2
+    category: consistency
+    severity: suggestion
+    detect: mergeable_scenes
+    principle: >
+      Two scenes in a row at the same location and the same time of day, with
+      no transition between them, are one scene that was split by an edit.
+    source: ProdConv
+
+  - id: C019
+    name: Location abbreviation drift
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: abbreviation_drift
+    principle: >
+      A place written out in one heading and abbreviated in another
+      (APARTMENT vs APT., HOSPITAL vs HOSP.) is one set that will appear
+      twice on a breakdown.
+    source: ProdConv
+
+  - id: C021
+    name: Distinct location count relative to length
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: location_load
+    params: {max_per_page: 0.35, min_pages: 20}
+    principle: >
+      Distinct locations drive company moves, and company moves drive
+      schedule. Counting them early turns an invisible cost into a number.
+    source: ProdConv
+
+  - id: C022
+    name: Night-scene share
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: night_ratio
+    params: {max_ratio: 0.6, min_scenes: 15}
+    principle: >
+      Night shooting costs more per page than day shooting. The share of
+      night scenes is a measurable property of the draft, and it is far
+      cheaper to notice now than in prep.
+    source: ProdConv
+
+  - id: C023
+    name: Runaway scene length
+    tier: 2
+    category: production
+    severity: warning
+    detect: scene_length
+    params: {max_pages: 4.0}
+    principle: >
+      A single scene running several pages is a shooting day on one set and a
+      long stretch without a cut. It may be the design; it should be a
+      deliberate one.
+    source: Goldman; ProdConv
+
+  # ---- structural continuity -------------------------------------------
+  - id: C014
+    name: Unclosed FLASHBACK
+    tier: 2
+    category: consistency
+    severity: error
+    detect: unclosed_flashback
+    principle: >
+      A flashback that opens must close (END FLASHBACK, BACK TO PRESENT, or
+      an equivalent). Without a close, every scene after it is ambiguous in
+      time.
+    source: Riley; ProdConv
+
+  - id: C015
+    name: Unclosed MONTAGE or SERIES OF SHOTS
+    tier: 2
+    category: consistency
+    severity: error
+    detect: unclosed_montage
+    principle: >
+      A montage is a bounded block. An opening marker with no END MONTAGE
+      leaves the reader unsure where normal scene time resumes.
+    source: Riley; ProdConv
+
+  - id: C016
+    name: Unclosed INTERCUT
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: unclosed_intercut
+    principle: >
+      An INTERCUT sets up cross-cutting between two established locations and
+      needs an END INTERCUT or a new heading to end it. Otherwise the cut
+      pattern runs to the end of the script.
+    source: Riley; ProdConv
+
+  - id: C026
+    name: Capitalised prop introduced and never used
+    tier: 2
+    category: consistency
+    severity: suggestion
+    detect: unpaid_prop
+    params: {min_length: 4}
+    principle: >
+      Capitalising a prop tells the art department to build it and the reader
+      to remember it. One that never returns is either a promise the script
+      does not keep or a capital that should be lowercase.
+    source: McKee (setup and payoff, reworded); ProdConv
+
+  - id: C027
+    name: Series regular introduced late in a pilot
+    tier: 2
+    category: structure
+    severity: suggestion
+    detect: late_series_regular
+    params: {introduce_before: 0.5, min_scenes: 3}
+    profiles: [tv-pilot]
+    principle: >
+      A pilot's job is to introduce the cast the series will run on. A
+      character who recurs heavily but first speaks past the midpoint was
+      probably meant to arrive earlier.
+    source: TVConv
+
+  # =====================================================================
+  # TIER 3 — LLM RUBRIC JUDGES
+  # Soft rules. One scoped rubric per rule, built from this YAML. Zero code.
+  # Every finding must carry verbatim evidence that the caller re-verifies.
+  # =====================================================================
+
+  # ---- craft ------------------------------------------------------------
+  - id: S001
+    name: Unfilmable interiority in action lines
+    tier: 3
+    category: craft
+    severity: warning
+    principle: >
+      Action lines may only contain what a camera can photograph or a
+      microphone can record. Thoughts, memories, backstory, and feelings that
+      have no visible behavior are unfilmable and must be externalized.
+    source: Trottier; McKee
+    examples:
+      - bad: "Maya stares at the letter. She remembers the summer her father left and wonders if she ever forgave him."
+        good: "Maya stares at the letter. Her thumb worries the torn edge. She almost opens it. Doesn't."
+      - bad: "John is secretly furious but decides to hide it."
+        good: "John smiles. His knuckles whiten around the glass."
+
+  - id: S002
+    name: On-the-nose dialogue
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      Characters should not state their emotions, motives, or the subtext
+      outright. Dialogue works when what is said sits at an angle to what is
+      meant.
+    source: McKee
+    examples:
+      - bad: "I am very angry with you because you betrayed my trust when you told Sarah my secret."
+        good: "Sarah says hi, by the way. She knew things about me only one person knew."
+
+  - id: S003
+    name: Exposition dump
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      Backstory and world information should be released only when the scene
+      needs it, ideally inside conflict, and never as characters reciting
+      facts they both already know for the audience's benefit.
+    source: McKee (exposition as ammunition, reworded)
+    examples:
+      - bad: "As you know, brother, since Dad died five years ago the factory has been losing money and the bank owns half of it."
+        good: "The bank called again. / Let them. / They asked for you by name this time."
+
+  - id: S004
+    name: Scene enters early, exits late
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      Enter each scene at the last possible moment and leave at the first;
+      greetings, arrivals, and goodbyes that carry no conflict are dead
+      weight.
+    source: Goldman; SpecConv
+    examples:
+      - bad: "Hi. / Hey, come in. / Coffee? / Sure, black. / So... you wanted to talk?"
+        good: "Scene opens mid-argument, coffee already cold on the table."
+
+  - id: S005
+    name: Passive protagonist stretch
+    tier: 3
+    category: structure
+    severity: suggestion
+    principle: >
+      Across any sustained stretch, the protagonist should be making choices
+      that cause the next scene, not merely receiving events. Watching things
+      happen is not a story engine.
+    source: Field; McKee
+    examples:
+      - bad: "Hero is told the plan, driven to the location, rescued when it fails."
+        good: "Hero picks the lock herself; the alarm she trips creates act three."
+
+  - id: S006
+    name: Late or absent inciting disruption
+    tier: 3
+    category: structure
+    severity: suggestion
+    principle: >
+      Something must disrupt the protagonist's ordinary world within roughly
+      the first ten to fifteen pages; if the status quo survives past that,
+      the read stalls.
+    source: Field; Snyder (beat placement, reworded)
+
+  - id: S007
+    name: Interchangeable character voices
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      Cover the cue names and you should still know who is speaking. If any
+      two characters' lines could be swapped without loss, their voices are
+      not yet differentiated.
+    source: McKee; SpecConv
+
+  - id: S008
+    name: Unmotivated or unrelated detail
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      Every prop, detail, or aside the script spends words on creates an
+      expectation of payoff. Flag conspicuous details that never return and
+      digressions unrelated to the scene's purpose.
+    source: McKee (setup/payoff causality, reworded)
+
+  - id: S009
+    name: Scene in which nothing turns
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      A scene should end in a different state from the one it began in:
+      someone learns something, loses something, or commits to something. A
+      scene that ends exactly where it started is information, not drama.
+    source: McKee (scene as the unit of change, reworded)
+    examples:
+      - bad: "Two detectives review the case file, agree it is strange, and go home."
+        good: "Two detectives review the case file. One of them recognises the handwriting and says nothing."
+
+  - id: S010
+    name: Interview-shaped dialogue
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      Dialogue built as a run of questions answered directly is an interview,
+      not a scene. Characters who want something deflect, change the subject,
+      and answer the question they wish had been asked.
+    source: McKee; Goldman
+    examples:
+      - bad: "Where were you? / At work. / Until when? / Ten. / Did anyone see you? / My manager."
+        good: "Where were you? / You've got the receipt in your hand. / I want to hear you say it."
+
+  - id: S011
+    name: Dialogue restating what we just watched
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      When a line describes an action the audience has just seen, the script
+      is paying twice for the same beat. Trust the image.
+    source: Goldman; McKee
+    examples:
+      - bad: "He drops the glass. It shatters. JOHN: I dropped the glass. It broke."
+        good: "He drops the glass. It shatters. JOHN: That was my mother's."
+
+  - id: S012
+    name: The same information delivered twice
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      A fact the audience already has does not need restating in a later
+      scene unless something about the restatement is new. Repetition without
+      change reads as a rewrite seam.
+    source: McKee (progressive complications, reworded)
+
+  - id: S013
+    name: Monologue without resistance
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      A long speech holds only when someone in the scene is trying to stop
+      it. An uninterrupted monologue delivered to a silent listener is the
+      writer talking, not the character.
+    source: McKee; Goldman
+
+  - id: S014
+    name: Character introduced without a distinguishing detail
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      A first appearance should give the reader one specific thing to hold
+      onto — a behaviour, an object, a way of occupying the space. A name and
+      an age alone leave the character a blank.
+    source: Trottier; Snyder (audience empathy, reworded)
+    examples:
+      - bad: "SARAH (30s) enters the room."
+        good: "SARAH (30s) enters carrying her own chair, and puts it where she wants it."
+
+  - id: S015
+    name: Characters naming each other too often
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      People rarely use each other's names mid-conversation. Names sprinkled
+      through dialogue are the writer reminding the reader who is speaking,
+      which the cue already does.
+    source: SpecConv
+    examples:
+      - bad: "Look, John, I told you, John, this isn't about the money."
+        good: "I told you. It isn't about the money."
+
+  - id: S016
+    name: Appearance detail that narrows casting without cause
+    tier: 3
+    category: production
+    severity: suggestion
+    principle: >
+      Physical description should be limited to what the story actually
+      requires. Detail beyond that closes casting doors for no dramatic
+      return, and is usually habit rather than intent.
+    source: ProdConv
+
+  - id: S017
+    name: Performance directed inside action lines
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      Action lines describe behaviour, not the reading of a line. Adverbs of
+      delivery placed in action ("he says, bitterly") direct the actor from
+      the wrong element.
+    source: Trottier; McKee
+    examples:
+      - bad: "He answers her sarcastically, clearly hurt by the accusation."
+        good: "He answers without looking up. Keeps stacking the plates."
+
+  - id: S018
+    name: Voice-over carrying what the scene should show
+    tier: 3
+    category: craft
+    severity: suggestion
+    principle: >
+      Voice-over is a legitimate device when it says what the images cannot.
+      When it narrates what is already on screen, it replaces the scene
+      instead of layering it.
+    source: McKee; SpecConv
+
+  - id: S019
+    name: Act-out that does not turn
+    tier: 3
+    category: structure
+    severity: suggestion
+    profiles: [tv-pilot]
+    principle: >
+      An act break should land on a reversal, a revelation, or a decision
+      that makes the audience need the next act. An act that ends on a
+      conversation winding down gives them permission to stop watching.
+    source: TVConv; Snyder (beat placement, reworded)
+
+  - id: S020
+    name: Code-mixed dialogue inconsistent within a character
+    tier: 3
+    category: language
+    severity: suggestion
+    profiles: [indian-regional]
+    principle: >
+      In a code-mixed script, how much a character switches languages is
+      characterisation — class, education, region, who they are talking to. A
+      character whose mix changes with no situational reason reads as
+      inconsistent rather than bilingual.
+    source: INConv; McKee (character voice, reworded)
+
+  # ---- language ---------------------------------------------------------
+  - id: L001
+    name: Tense drift in action lines
+    tier: 3
+    category: language
+    severity: warning
+    principle: >
+      Action is written in present tense, always. Past-tense action lines
+      break the convention that a screenplay describes what the audience is
+      watching right now.
+    source: Trottier; SpecConv
+    examples:
+      - bad: "John walked to the window and looked outside."
+        good: "John walks to the window. Looks outside."
+
+  - id: L002
+    name: Spelling and typo sweep
+    tier: 3
+    category: language
+    severity: warning
+    principle: >
+      Flag probable misspellings and typos, but respect screenwriting style:
+      sentence fragments, ALL-CAPS emphasis on sounds/props, and invented
+      proper nouns used consistently are not errors.
+    source: SpecConv
+
+  - id: L003
+    name: Passive voice in action lines
+    tier: 3
+    category: language
+    severity: suggestion
+    principle: >
+      Action should name the agent and the verb in that order. The passive
+      voice hides who is doing what, which is exactly the information a
+      department head reads the action line to find.
+    source: Trottier; ProdConv
+    examples:
+      - bad: "The door is opened by a woman in a raincoat."
+        good: "A woman in a raincoat opens the door."
+
+  - id: L004
+    name: Adverb dependence in action
+    tier: 3
+    category: language
+    severity: suggestion
+    principle: >
+      An adverb attached to a weak verb is a stronger verb waiting to be
+      found. "Walks slowly" is not a shot; "drags" is.
+    source: Trottier
+    examples:
+      - bad: "She quickly and nervously puts the letter away."
+        good: "She shoves the letter under the mattress."
+
+  - id: L005
+    name: Hedging verbs before the action
+    tier: 3
+    category: language
+    severity: suggestion
+    principle: >
+      "Begins to", "starts to", and "proceeds to" put a frame between the
+      reader and the action. The camera does not photograph beginning to
+      stand; it photographs standing.
+    source: Trottier
+    examples:
+      - bad: "He begins to walk toward the car and starts to open the door."
+        good: "He walks to the car. Opens the door."
+
+  - id: L006
+    name: Novelistic prose beyond the frame
+    tier: 3
+    category: language
+    severity: suggestion
+    principle: >
+      Similes, metaphors, and authorial asides that cannot be photographed
+      belong to prose. A screenplay's description is a shot list in
+      sentences.
+    source: Trottier; McKee
+    examples:
+      - bad: "The house sat like a wounded animal on the hill, remembering better decades."
+        good: "The house. Roof caved on one side. Paint gone to bare wood."
+
+  - id: L007
+    name: Unfilmable sensory description
+    tier: 3
+    category: language
+    severity: suggestion
+    principle: >
+      Smell, taste, and temperature reach the audience only through what they
+      can see or hear. Describe the behaviour the sensation causes, not the
+      sensation.
+    source: Trottier; McKee
+    examples:
+      - bad: "The kitchen smells of burnt garlic and the tiles are freezing underfoot."
+        good: "Smoke curls off the pan. She crosses the tiles on her toes, fast."
+
+  - id: L008
+    name: Untranslated dialogue not marked for subtitles
+    tier: 3
+    category: language
+    severity: warning
+    principle: >
+      Dialogue in a language other than the script's primary language must be
+      marked — a parenthetical naming the language, a subtitle note, or a
+      bracketed translation. Unmarked, it is unshootable and untranslatable.
+    source: Riley; ProdConv
+    examples:
+      - bad: "RAJU: Nuvvu ekkada unnavu?"
+        good: "RAJU (in Telugu, subtitled): Nuvvu ekkada unnavu?"

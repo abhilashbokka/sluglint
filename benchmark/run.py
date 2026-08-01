@@ -1,0 +1,210 @@
+"""Measure Sluglint against injected defects and report the numbers.
+
+Two things get measured, and they are the two that matter:
+
+  RECALL     inject a defect the rule exists to catch, then check the rule
+             fires. Per mutator, over every script in the corpus.
+
+  COLLATERAL a one-line change should produce roughly one new finding. Any
+             OTHER rule that starts firing because of that change is noise the
+             writer has to read past, so it is counted and named.
+
+Baseline findings on the unmutated script are reported too. On a real script
+those are candidate false positives and want a human eye, which is why the
+report prints them by rule rather than as a single score.
+
+  python benchmark/run.py                      # ships-with-the-repo corpus
+  python benchmark/run.py --dir ~/my-scripts   # your own scripts, never committed
+  python benchmark/run.py --drafts             # the v1..vN draft-drift demo
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from mutate import REGISTRY, apply_all, chain  # noqa: E402
+
+from sluglint.diff import diff_findings  # noqa: E402
+from sluglint.lint import run_rules  # noqa: E402
+from sluglint.parser import parse_text  # noqa: E402
+from sluglint.rulebook import load_rulebook, rules_by_tier  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
+BOOK = load_rulebook()
+
+
+def lint(text: str, profile: str | None = None):
+    rules = BOOK.for_profile(profile)
+    script = parse_text(text)
+    return run_rules(script, rules_by_tier(rules, 1)) + run_rules(script, rules_by_tier(rules, 2))
+
+
+def corpus(directory: Path) -> list[tuple[str, str]]:
+    files = sorted(p for p in directory.rglob("*") if p.suffix in {".fountain", ".txt"})
+    return [(p.name, p.read_text(encoding="utf-8", errors="replace")) for p in files]
+
+
+def measure(scripts: list[tuple[str, str]], seed: int) -> dict:
+    per_rule: dict[str, dict] = defaultdict(
+        lambda: {"applied": 0, "caught": 0, "any": 0, "collateral": Counter()})
+    baseline: Counter = Counter()
+    skipped: Counter = Counter()
+
+    for _name, text in scripts:
+        for f in lint(text):
+            baseline[f.rule_id] += 1
+        hosted = {m.name for m in apply_all(text, seed)}
+        for _rid, mname, _desc, _fn in REGISTRY:
+            if mname not in hosted:
+                skipped[mname] += 1
+
+        before = lint(text)
+        for m in apply_all(text, seed):
+            after = lint(m.text)
+            introduced = {f.rule_id for f in diff_findings(before, after).introduced}
+            slot = per_rule[m.rule_id]
+            slot["applied"] += 1
+            if introduced:
+                slot["any"] += 1
+            if m.rule_id in introduced:
+                slot["caught"] += 1
+            for other in introduced - {m.rule_id}:
+                slot["collateral"][other] += 1
+
+    return {"per_rule": per_rule, "baseline": baseline, "skipped": skipped,
+            "n_scripts": len(scripts)}
+
+
+def draft_chain(scripts: list[tuple[str, str]], seed: int) -> list[str]:
+    """Walk one script through successive drafts and show when each defect lands."""
+    order = ["insert_camera_direction", "rename_character", "drop_time_of_day",
+             "wall_of_text", "unclosed_flashback"]
+    out: list[str] = []
+    name, text = max(scripts, key=lambda s: len(s[1]))
+    drafts = chain(text, order, seed)
+    if not drafts:
+        return [f"No mutation applied to {name}."]
+
+    out.append(f"Draft drift on `{name}`, one change per draft.\n")
+    out.append("| Draft | Change made | Flagged the same day by | Findings |")
+    out.append("|---|---|---|---:|")
+    prev = lint(text)
+    out.append(f"| v1 | (original) | | {len(prev)} |")
+    for n, m in enumerate(drafts, start=2):
+        cur = lint(m.text)
+        introduced = sorted({f.rule_id for f in diff_findings(prev, cur).introduced})
+        caught = ", ".join(f"`{r}`" for r in introduced) or "nothing"
+        out.append(f"| v{n} | {m.note} | {caught} | {len(cur)} |")
+        prev = cur
+    out.append("")
+    out.append("Each defect is named in the draft that introduced it. Without the diff")
+    out.append("the name drift in v3 is one line inside a growing list of findings, and")
+    out.append("it stays there until someone reads the whole script again.")
+    return out
+
+
+def render(result: dict, scripts: list[tuple[str, str]], seed: int) -> str:
+    per_rule = result["per_rule"]
+    total_applied = sum(v["applied"] for v in per_rule.values())
+    total_caught = sum(v["caught"] for v in per_rule.values())
+    rate = total_caught / total_applied if total_applied else 0.0
+
+    out = [
+        "# Benchmark report",
+        "",
+        "Generated by `python benchmark/run.py`. Reproducible: the mutators are",
+        f"seeded (`--seed {seed}`), so the same corpus gives the same numbers.",
+        "",
+        f"Corpus: **{result['n_scripts']} scripts**. "
+        f"Injected defects: **{total_applied}**. Caught: **{total_caught}** "
+        f"({rate:.0%}).",
+        "",
+        "## Recall by rule",
+        "",
+        "One defect injected per script per rule. Caught means the *intended* rule",
+        "appears in the findings the mutation introduced, measured with the same",
+        "fingerprint diff that `sluglint diff` uses. The last column is looser and",
+        "closer to what a writer experiences: did anything at all flag the change?",
+        "A defect caught by a neighbouring rule still gets fixed.",
+        "",
+        "| Rule | Injected defect | Applied | Caught | Recall | Caught by any rule | Collateral |",
+        "|---|---|---:|---:|---:|---:|---|",
+    ]
+    names = {rid: desc for rid, _nm, desc, _fn in REGISTRY}
+    for rule_id in sorted(per_rule):
+        v = per_rule[rule_id]
+        r = v["caught"] / v["applied"] if v["applied"] else 0.0
+        coll = ", ".join(f"`{k}` x{n}" for k, n in v["collateral"].most_common(3)) or "none"
+        anyr = v["any"] / v["applied"] if v["applied"] else 0.0
+        out.append(f"| `{rule_id}` | {names.get(rule_id, '')} | {v['applied']} | "
+                   f"{v['caught']} | {r:.0%} | {anyr:.0%} | {coll} |")
+
+    skipped = {k: n for k, n in result["skipped"].items() if n}
+    if skipped:
+        out += ["", "### Not applicable", "",
+                "A mutator that has nowhere to inject its defect is skipped rather than",
+                "forced. Counted here so no coverage is silently claimed.", "",
+                "| Mutator | Scripts with no suitable site |", "|---|---:|"]
+        out += [f"| {k} | {n} |" for k, n in sorted(skipped.items())]
+
+    out += ["", "## Baseline findings on the unmutated corpus", "",
+            "Every finding here fired without anyone injecting anything. On a clean",
+            "fixture these should be near zero. On a real script each one is a",
+            "candidate false positive and wants a human read.", "",
+            "| Rule | Findings |", "|---|---:|"]
+    for rid, n in result["baseline"].most_common():
+        out.append(f"| `{rid}` | {n} |")
+    if not result["baseline"]:
+        out.append("| (none) | 0 |")
+
+    out += ["", "## Draft drift", ""] + draft_chain(scripts, seed)
+    out += ["", "---", "",
+            "## What this does and does not prove", "",
+            "It proves the rules fire on the defects they were written for, and it",
+            "puts a number on how much noise each one drags along.", "",
+            "It does not prove precision on real scripts. That needs a corpus of",
+            "produced screenplays with a human verdict on every finding, and the",
+            "licensing situation for those is covered in",
+            "[docs/public-domain-scripts.md](../docs/public-domain-scripts.md).",
+            "Until that exists, treat the recall column as measured and the",
+            "precision claim as untested.", ""]
+    return "\n".join(out)
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Sluglint fault-injection benchmark")
+    ap.add_argument("--dir", type=Path, default=ROOT / "benchmark" / "corpus",
+                    help="directory of .fountain/.txt scripts")
+    ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--out", type=Path, default=ROOT / "benchmark" / "REPORT.md")
+    ap.add_argument("--drafts", action="store_true", help="print only the draft-drift table")
+    args = ap.parse_args(argv)
+
+    scripts = corpus(args.dir) if args.dir.exists() else []
+    if not scripts:
+        # An empty corpus dir is the normal state: the free scripts you add are
+        # yours to fetch, so fall back to the fixtures that ship with the repo.
+        scripts = corpus(ROOT / "examples")
+        print(f"No scripts in {args.dir}; using examples/ instead.", file=sys.stderr)
+    if not scripts:
+        print("No scripts found.", file=sys.stderr)
+        return 2
+
+    if args.drafts:
+        print("\n".join(draft_chain(scripts, args.seed)))
+        return 0
+
+    report = render(measure(scripts, args.seed), scripts, args.seed)
+    args.out.write_text(report, encoding="utf-8")
+    print(report)
+    print(f"\nWritten to {args.out}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

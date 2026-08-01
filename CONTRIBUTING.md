@@ -1,6 +1,6 @@
 # Contributing to Sluglint
 
-The product is `rules/rulebook.yaml`. Most contributions are rules, not code.
+The product is `src/sluglint/rulebook.yaml`. Most contributions are rules, not code.
 
 ## Setup
 
@@ -27,7 +27,7 @@ Branch from `develop`, open a PR back into `develop`. Release PRs go
 
 ## Adding a rule
 
-**Tier 3 (LLM-judged) needs zero Python.** Add the rule to `rules/rulebook.yaml`
+**Tier 3 (LLM-judged) needs zero Python.** Add the rule to `src/sluglint/rulebook.yaml`
 with a `principle`, a `source`, and one or two `examples` — the judge builds its
 rubric from the YAML.
 

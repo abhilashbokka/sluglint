@@ -37,6 +37,10 @@ jobs:
           python -m sluglint.cli lint --profile tv-pilot examples/night_shift_pilot.fountain
           python -m sluglint.cli lint --profile indian-regional examples/nadi_regional.fountain
           python -m sluglint.cli diff examples/the_last_train.fountain examples/the_last_train_v2.fountain
+          # The shooting fixture has injected numbering errors; exit 1 is the pass condition.
+          if python -m sluglint.cli lint --profile shooting-script examples/switching_yard_production.fountain; then
+            echo "expected exit 1 on the shooting fixture" && exit 1
+          fi
 
   rulebook:
     runs-on: ubuntu-latest
@@ -51,7 +55,7 @@ jobs:
         run: |
           python - <<'PY'
           import re, pathlib, yaml
-          book = yaml.safe_load(pathlib.Path("rules/rulebook.yaml").read_text())
+          book = yaml.safe_load(pathlib.Path("src/sluglint/rulebook.yaml").read_text())
           readme = pathlib.Path("README.md").read_text()
           n_rules = len(book["rules"])
           claimed = int(re.search(r"rulebook-(\d+)%20rules", readme).group(1))

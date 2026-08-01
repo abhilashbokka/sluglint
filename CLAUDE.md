@@ -3,7 +3,7 @@
 ## What this project is
 
 A **rule-cited screenplay linter**, not an AI coverage tool. Every finding must
-trace to a rule in `rules/rulebook.yaml` with severity, source attribution,
+trace to a rule in `src/sluglint/rulebook.yaml` with severity, source attribution,
 location, and a suggested fix. Positioning: objective/verifiable defects (the
 crowded "AI coverage" market sells subjective opinions — we deliberately don't).
 
@@ -41,7 +41,7 @@ itself skipped. Keep it that way.
 
 | Path | Role |
 |---|---|
-| `rules/rulebook.yaml` | THE product. 101 rules + 4 profile definitions, as data. |
+| `src/sluglint/rulebook.yaml` | THE product. 101 rules + 4 profile definitions, as data. |
 | `src/sluglint/parser.py` | Fountain-lite → `Script{Scenes[Elements]}`. Forgiving on purpose. Keeps raw lines, extensions, dual markers, scene numbers, act markers. |
 | `src/sluglint/models.py` | Dataclasses. `Finding.fingerprint` powers draft diffing. |
 | `src/sluglint/rulebook.py` | YAML loader, `Rule`, `Profile`, profile filtering. |

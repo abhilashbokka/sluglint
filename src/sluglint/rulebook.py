@@ -12,7 +12,9 @@ from pathlib import Path
 
 import yaml
 
-DEFAULT_RULEBOOK = Path(__file__).resolve().parents[2] / "rules" / "rulebook.yaml"
+# Ships inside the package so an installed wheel can find it, not just a
+# source checkout.
+DEFAULT_RULEBOOK = Path(__file__).resolve().parent / "rulebook.yaml"
 
 
 @dataclass

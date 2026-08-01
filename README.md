@@ -136,7 +136,7 @@ $ sluglint lint --profile shooting-script production_draft.fountain
 
 ## Rules are data, not code
 
-The product is [`rules/rulebook.yaml`](rules/rulebook.yaml). Every rule carries
+The product is [`src/sluglint/rulebook.yaml`](src/sluglint/rulebook.yaml). Every rule carries
 an **original formulation** of the principle plus a source attribution —
 Trottier's and Riley's formatting conventions, Field's structure paradigm,
 McKee's craft principles, Snyder's beat placement, Goldman's scene economy,
@@ -292,7 +292,7 @@ open core over freemium — is in
 ## Repo layout
 
 ```
-rules/rulebook.yaml            THE PRODUCT — 101 rules as data, 4 profiles
+src/sluglint/rulebook.yaml            THE PRODUCT — 101 rules as data, 4 profiles
 src/sluglint/
   parser.py                    Fountain-lite → Script/Scene/Element
   models.py                    dataclasses + Finding (with diff fingerprint)

@@ -1,11 +1,11 @@
-"""Tier 1 — deterministic document metrics and profile-gated structure rules.
+"""Tier 1 deterministic document metrics and profile-gated structure rules.
 
 Two kinds of check live here:
 
   * Ratios and counts across the whole document (transitions per scene,
     exclamation marks per page, scenes per page). These produce ONE
     script-level finding, and their `evidence` is a fixed string rather than
-    the count — counts go in `message`. If the count went in the evidence,
+    the count. Counts belong in `message`. If the count went in the evidence,
     every re-lint with one more exclamation mark would look like a brand new
     finding and the draft diff would churn.
 
@@ -21,7 +21,7 @@ from ..models import ElementType, Script
 from ..rulebook import Rule
 from .registry import detector, finding
 
-NON_LATIN_SCRIPT = re.compile(r"[ऀ-෿]")  # Devanagari .. Sinhala
+NON_LATIN_SCRIPT = re.compile(r"[\u0900-\u0dff]")  # Devanagari .. Sinhala
 SCENE_NUMBER = re.compile(r"^(\d{1,4})([A-Z]{0,2})$")
 ACT_MARKER = re.compile(r"^(ACT [A-Z0-9]+|COLD OPEN|TEASER|TAG)$")
 SONG_IN_ACTION = re.compile(r"\bSONG\b", re.IGNORECASE)
@@ -116,7 +116,7 @@ def ellipsis_overuse(script: Script, rule: Rule):
     lines = [el for el in script.elements if el.type == ElementType.DIALOGUE]
     if len(lines) < int(rule.params.get("min_lines", 20)):
         return
-    hits = [el for el in lines if "..." in el.text or "…" in el.text]
+    hits = [el for el in lines if "..." in el.text or "\u2026" in el.text]
     ratio = len(hits) / len(lines)
     if ratio > float(rule.params.get("max_ratio", 0.20)):
         yield finding(rule, f"{len(hits)} of {len(lines)} dialogue lines trail off "
@@ -140,7 +140,7 @@ def dialogue_ratio(script: Script, rule: Rule):
         yield finding(rule, f"Dialogue is {ratio:.0%} of the body text ({side}; "
                             f"usual band {lo:.0%}-{hi:.0%}).",
                       evidence="dialogue/action balance outside band",
-                      suggestion="Not wrong — but it should be a decision, not an accident.")
+                      suggestion="Worth knowing on purpose rather than inheriting it.")
 
 
 @detector("scene_density")
@@ -254,8 +254,8 @@ def song_cue_format(script: Script, rule: Rule):
             yield finding(rule, "Song sequence is described in action rather than marked "
                                 "as a block.",
                           line_no=el.line_no, scene_index=el.scene_index, evidence=el.text[:80],
-                          suggestion="Head it with 'SONG:' or 'SONG SEQUENCE' on its own line — "
-                                     "it is a scheduled production unit.")
+                          suggestion="Head it with 'SONG:' or 'SONG SEQUENCE' on its own line. "
+                                     "It is a scheduled production unit.")
 
 
 @detector("interval_marker")
@@ -273,7 +273,7 @@ def interval_marker(script: Script, rule: Rule):
     position = script.elements.index(markers[0]) / max(len(script.elements) - 1, 1)
     if abs(position - expected) > tolerance:
         yield finding(rule, f"INTERVAL falls at {position:.0%} of the script "
-                            f"(expected {expected:.0%} ± {tolerance:.0%}).",
+                            f"(expected {expected:.0%} plus or minus {tolerance:.0%}).",
                       line_no=markers[0].line_no, evidence="interval placement",
                       suggestion="Rebalance the halves, or move the marker to the real midpoint.")
 

@@ -1,4 +1,4 @@
-"""Tier 1 — deterministic format lint: how individual elements are written.
+"""Tier 1 deterministic format lint: how individual elements are written.
 
 Pure code over the parse, zero LLM cost, 100% precision by design. Every
 handler here answers a question with one right answer ("does this heading
@@ -6,7 +6,7 @@ have a time of day?"), never a judgement call.
 
 Where a naive check would over-fire, the handler is deliberately narrowed.
 F014 only flags a bad separator immediately before a *recognised* time of
-day, so hyphenated place names (DRIVE-IN) stay clean; F023 only flags a
+day, so hyphenated place names (DRIVE-IN) stay clean. F023 only flags a
 mixed-case cue when the name is already a known speaker. A linter that cries
 wolf gets uninstalled.
 
@@ -51,13 +51,15 @@ CANONICAL_TRANSITIONS = {
 }
 
 PAGINATION_ARTIFACTS = re.compile(
-    r"^\s*(?:\(MORE\)|\(CONT(?:'|’)?D\)|CONTINUED:?|\(CONTINUED\)|\d{1,3}\.)\s*$",
+    r"^\s*(?:\(MORE\)|\(CONT(?:'|\u2019)?D\)|CONTINUED:?|\(CONTINUED\)|\d{1,3}\.)\s*$",
     re.IGNORECASE,
 )
 EXOTIC_WHITESPACE = {"\t": "tab", "\u00a0": "non-breaking space",
                      "\u2028": "line separator", "\u200b": "zero-width space"}
-SMART_TYPOGRAPHY = {"‘": "'", "’": "'", "“": '"', "”": '"',
-                    "–": "-", "—": "--", "…": "..."}
+# Written as escapes so the source stays ASCII; these are the characters the
+# rule hunts for, so they cannot simply be removed.
+SMART_TYPOGRAPHY = {"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"',
+                    "\u2013": "-", "\u2014": "--", "\u2026": "..."}
 EMPHASIS_MARKUP = re.compile(r"\*\*?[^*\n]+\*\*?|_[^_\n]+_")
 
 
@@ -130,7 +132,7 @@ def nonstandard_time_of_day(script: Script, rule: Rule):
     for sc in script.scenes:
         tail = _trailing_segment(sc.heading)
         # Only fire when the tail READS as a time marker but is not a standard
-        # one — otherwise every sub-location ('- KITCHEN') would be a finding.
+        # one. Otherwise every sub-location ('- KITCHEN') would be a finding.
         if tail and tail not in TIMES_OF_DAY and TIME_STEMS.search(tail):
             yield finding(rule, f"Time marker '{tail}' is not one of the standard tokens.",
                           line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
@@ -141,7 +143,7 @@ def nonstandard_time_of_day(script: Script, rule: Rule):
 @detector("empty_location")
 def empty_location(script: Script, rule: Rule):
     for sc in script.scenes:
-        loc = (sc.location or "").strip(" -–—")
+        loc = (sc.location or "").strip(" -\u2013\u2014")
         if sc.int_ext is not None and (not loc or loc.upper() in TIMES_OF_DAY):
             yield finding(rule, "Scene heading names no location.",
                           line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
@@ -162,8 +164,8 @@ def overlong_heading(script: Script, rule: Rule):
 def heading_separator(script: Script, rule: Rule):
     for sc in script.scenes:
         up = sc.heading.upper().rstrip()
-        if "–" in up or "—" in up:
-            yield finding(rule, "Scene heading uses an en/em dash instead of a spaced hyphen.",
+        if "\u2013" in up or "\u2014" in up:
+            yield finding(rule, "Scene heading uses a long dash instead of a spaced hyphen.",
                           line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
                           suggestion="Use ' - '.")
             continue
@@ -307,8 +309,8 @@ def probable_lowercase_cue(script: Script, rule: Rule):
                 and el.line_no + 1 in lines):
             yield finding(rule, f"'{text}' looks like a character cue that lost its capitals.",
                           line_no=el.line_no, scene_index=el.scene_index, evidence=text,
-                          suggestion=f"'{text.upper()}' — otherwise these lines never reach "
-                                     f"the character registry.")
+                          suggestion=f"Capitalise it as '{text.upper()}', or these lines never "
+                                     f"reach the character registry.")
 
 
 # ------------------------------------------------------------ document hygiene

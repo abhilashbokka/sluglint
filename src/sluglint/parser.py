@@ -33,7 +33,7 @@ SECTION_RE = re.compile(
     r"INTERVAL|INTERMISSION|SONG(?: SEQUENCE)?\s*[:\-].*|SONG SEQUENCE)\s*[.:]?$"
 )
 CENTERED_RE = re.compile(r"^>\s*(.+?)\s*<$")
-INDIC_SCRIPT = re.compile(r"[ऀ-෿]")  # Devanagari .. Sinhala
+INDIC_SCRIPT = re.compile(r"[\u0900-\u0dff]")  # Devanagari .. Sinhala
 TITLE_PAGE_KEYS = {
     "title", "credit", "author", "authors", "written by", "draft date", "date",
     "contact", "source", "copyright", "notes", "revision",
@@ -65,7 +65,7 @@ def split_scene_number(heading: str) -> tuple[str, str | None]:
         text = text[m.end():].strip()
     if m := TRAILING_NUMBER_RE.search(text):
         # Only strip a trailing number when it mirrors the leading one, or when
-        # there is no leading one — otherwise '- STAGE 2' loses its '2'.
+        # there is no leading one. Otherwise '- STAGE 2' loses its '2'.
         candidate = m.group(1).upper()
         if number is None or candidate == number:
             number = number or candidate
@@ -83,13 +83,13 @@ def _is_character_cue(line: str, prev_blank: bool, next_line: str | None) -> boo
     if not base or len(base) > 40:
         return False
     # A cue is normally uppercase Latin. Indic scripts are caseless, so accept a
-    # short native-script line too — the indian-regional profile lints the mix.
+    # short native-script line too. The indian-regional profile lints the mix.
     if not re.search(r"[A-Z]", base) and not (
             INDIC_SCRIPT.search(base) and len(base.split()) <= 4):
         return False
     if base != base.upper() or re.search(r"[a-z]", stripped):
         return False
-    if re.search(r"[!?.:;,]$", base):  # 'BANG!' style sound lines are action, not cues
+    if re.search(r"[!?.:;,]$", base):  # 'BANG!' style sound lines are action, never cues
         return False
     # A cue must be followed by dialogue or a parenthetical.
     return bool(next_line and next_line.strip())

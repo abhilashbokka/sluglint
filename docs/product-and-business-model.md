@@ -1,141 +1,182 @@
 # Product levels and business model
 
-## The decision: open core, not freemium
+## The licence decision
 
-The engine and the entire rulebook are MIT and stay that way. Paid tiers sell
-**hosting, collaboration, and production integration** — never rules.
+Sluglint is under [PolyForm Noncommercial 1.0.0](../LICENSE). The source is
+public and readable. Commercial use requires a paid licence.
 
-### Why not closed freemium
+**Why not MIT.** MIT was the wrong tool for the goal. It explicitly permits free
+commercial use and requires only that the notice stay in source copies. Under
+MIT a studio could embed Sluglint in a product it sells and owe nothing. That is
+the opposite of the intent.
 
-A tool whose entire pitch is *"unlike coverage tools, our findings are
-verifiable"* cannot then ask you to take its rulebook on faith. The credibility
-argument and the open rulebook are the same argument. Hiding the rules would
-undercut the only thing that differentiates this from a GPT wrapper.
+**Why not closed source.** The whole claim of this project is that its findings
+are checkable. Asking anyone to trust a hidden rulebook would undercut the only
+thing separating it from a chatbot with a system prompt. The rules stay visible.
 
-Three more reasons:
+**Why not AGPL.** AGPL keeps OSI open-source status, which has real value. But it
+only triggers on distribution or offering a network service. A studio running the
+CLI internally on its own slate would owe nothing, and internal studio use is
+exactly the case worth charging for.
 
-1. **The rulebook is the moat, and openness grows it.** Rules are a corpus that
-   compounds. Contributions — especially regional profiles from writers who
-   actually work in those industries — are worth more than the revenue lost by
-   publishing them.
-2. **Distribution.** Screenwriters don't buy unproven tools. They will `pip
-   install` a free one, and a free CLI in CI is how this reaches the developer-
-   adjacent writers who become the first paying users of level 2.
-3. **It's a public portfolio artifact.** A closed repo can't be walked through
-   in an interview.
+**The cost, stated plainly.** PolyForm Noncommercial is not OSI open source.
+GitHub labels it source-available. Some developers will not contribute to or
+depend on a non-OSI project, and that is a real loss of reach traded for the
+ability to charge the people who should pay.
 
-### What open core gives up
+**The boundary, fixed now.** Every rule stays visible and every rule stays free
+for noncommercial use, permanently. Paid tiers sell hosting, collaboration, and
+production integration. No rule ever moves behind a paywall, because doing that
+once destroys the trust that makes an open rulebook worth anything.
 
-Someone can self-host level 2. In practice almost nobody does — the people
-willing to run a FastAPI service and hold their own API key are exactly the
-people happy on level 1 anyway. That's an acceptable trade.
-
-### The relicense trap, avoided
-
-Open core only works if the boundary is drawn once, at the start, and never
-moved. The commitment: **anything that decides whether a line of a screenplay is
-a defect is MIT, forever.** Paid features are always *around* the engine — a UI,
-a database, a team, an export — never *inside* it. No rule is ever moved behind
-a paywall, because doing that once destroys the trust that makes the open
-rulebook worth anything.
+**Prior MIT commits.** The first four commits were published under MIT. Anyone
+who cloned in that window keeps MIT rights to that snapshot. Everything from the
+licence change onward is PolyForm.
 
 ---
 
-## Level 1 — CLI + rulebook
+## Level 1: CLI and rulebook
 
-**Free. MIT. Forever.**
+**Free for writers. Always.**
 
 | | |
 |---|---|
-| **Who** | Writers comfortable in a terminal; developers; anyone with a script in git |
-| **What** | 101 rules, 4 profiles, `lint` / `diff` / `rules`, JSON output, CI-friendly exit codes, the full tier-3 judge (bring your own `ANTHROPIC_API_KEY`) |
-| **Cost to run** | Tiers 1–2: zero, no network. Tier 3: ~$0.01–0.05/script, paid directly to Anthropic |
-| **Job it does** | "Tell me what's mechanically wrong with this draft before I send it" |
-| **Success looks like** | Installs, stars, and — the one that matters — contributed rules and profiles |
+| **Who** | Writers comfortable in a terminal, developers, anyone with a script in git |
+| **What** | 101 rules, 4 profiles, `lint` / `diff` / `rules`, JSON output, CI exit codes, the benchmark harness, the full tier-3 judge with your own API key |
+| **Cost** | Tiers 1 and 2 cost nothing and never touch the network. Tier 3 runs about $0.01 to $0.05 a script, paid to Anthropic |
+| **Job** | "Tell me what is mechanically wrong with this draft before I send it" |
+| **Success** | Installs, and above all contributed rules and profiles |
 
-**Deliberately not paywalled:** every rule, every profile, the diff engine, and
-the LLM tier. If it decides what counts as a defect, it's free.
+Never paywalled: every rule, every profile, the diff engine, the benchmark. If
+it decides what counts as a defect, it is free for a writer.
 
 ---
 
-## Level 2 — Hosted
+## Level 2: Hosted
 
-**Paid. For working writers who don't want a terminal.**
+**Free while in beta.**
 
 | | |
 |---|---|
-| **Who** | Working and aspiring screenwriters; anyone who found level 1 and doesn't own a Python install |
-| **What** | Everything in level 1, plus: upload a script and see it annotated inline; accept or dismiss each finding; draft timeline showing the error count falling over time; **PDF and FDX import**; hosted LLM tier with no API key to manage; shareable read-only report links |
-| **Pricing hypothesis** | Free tier: 3 scripts/month, tiers 1–2 only. Paid: **$12–15/month**, unlimited scripts, LLM tier included, full draft history |
-| **Job it does** | "Show me my script with the problems marked, and let me watch them go away" |
-| **Why it's worth paying for** | Not the rules — those are free. You're paying for PDF ingestion, the annotated view, draft history, and never handling an API key |
+| **Who** | Working and aspiring screenwriters who do not own a Python install |
+| **What** | Everything in level 1, plus upload a script and see it annotated inline, accept or dismiss each finding, a draft timeline showing the error count falling, PDF and FDX import, hosted LLM tier with no API key to manage, shareable read-only report links |
+| **Price today** | Free. No card, no trial clock |
+| **Job** | "Show me my script with the problems marked, and let me watch them go away" |
 
-**Why this price:** it has to sit clearly below per-script AI coverage ($10–29)
-and far below a single Final Draft licence (~$250), while being an easy monthly
-next to WriterDuet at $6–10. A writer who reruns Sluglint across four drafts of
-one script is already ahead of a single $29 coverage report.
+Level 2 is free during the beta because the accept-and-dismiss data is worth
+more right now than the subscription revenue would be. Every dismissal is a
+labelled example saying a rule fired when it should not have, which is exactly
+what the precision gap in the benchmark needs. Paying users would be buying an
+unfinished product and generating the same data.
 
-**The retention loop is the diff.** Coverage is a one-shot purchase — you buy a
-report, you read it, you're done. Sluglint gets re-run on every draft, and the
-falling error count is the reason to come back. That's the difference between a
-transaction and a subscription.
+Early users keep beta access through the beta and get told well before anything
+changes.
 
-**The feedback loop is the product's real asset.** Accept/dismiss on every
-finding produces exactly the labelled data the eval harness needs. A rule with a
-70% dismissal rate is a rule with a threshold problem, and now that's a number
-instead of a hunch.
+**Pricing hypothesis for later**, recorded so the decision is deliberate: around
+$12 to $15 a month. It has to sit below per-script AI coverage ($10 to $29) and
+far below a Final Draft licence (about $250), while reading as an easy monthly
+next to WriterDuet at $6 to $10. A writer running four drafts of one script is
+already ahead of a single $29 coverage report.
+
+**The retention loop is the diff.** Coverage is bought once and read once.
+Sluglint gets re-run on every draft, and the falling error count is the reason
+to come back.
 
 ---
 
-## Level 3 — Production
+## Level 3: Production
 
-**Paid, per seat. For writers' rooms, production companies, and studios.**
+**Paid, per seat.**
 
 | | |
 |---|---|
-| **Who** | Showrunners and writers' rooms; script coordinators; line producers; production companies with a house style |
-| **What** | Everything in level 2, plus: **shared team rulebooks** (your house style, versioned, enforced across every script); breakdown exports (cast, locations, story days); production reports (speaking-cast size, distinct locations, night-scene share, scene-length outliers); API and webhooks; SSO; audit trail |
-| **Pricing hypothesis** | **$99–199/month** per production or small team |
-| **Job it does** | "Every script that reaches us should already be consistent, and I want the budget signals before prep, not during it" |
+| **Who** | Writers' rooms, script coordinators, line producers, production companies with a house style |
+| **What** | Everything in level 2, plus shared team rulebooks (your house style, versioned, enforced across every script), breakdown exports, production reports (speaking-cast size, distinct locations, night-scene share, scene-length outliers), API and webhooks, SSO, audit trail |
+| **Price hypothesis** | $99 to $199 a month per production or small team |
+| **Job** | "Every script that reaches us should already be consistent, and I want the budget signals before prep" |
 
-**Why this is where the money is.** Level 3 sells against a cost, not a
-preference. Name drift discovered in prep is a day of a script coordinator's
-life. A speaking-cast count that grew 20% during rewrites is a line-item nobody
-noticed. The tier-2 production metrics — `cast_size`, `location_load`,
-`night_ratio`, `scene_length` — exist for this tier specifically: they don't
-say the script is bad, they say the script has a number, and the number is
-knowable now instead of in prep.
+This is where the money is, because level 3 sells against a cost rather than a
+preference. Name drift found in prep is a day of a script coordinator's life. A
+speaking-cast count that grew 20% during rewrites is a line item nobody noticed.
+The tier-2 production metrics exist for this tier: they never say the script is
+bad, they say the script has a number and the number is knowable now.
 
-**Shared rulebooks are the lock-in.** Once a production's house style lives in a
-Sluglint rulebook — "we always mark song sequences as blocks," "we never allow
-camera direction in a writer's draft" — that rulebook is theirs and leaving
-means rebuilding it.
+Shared rulebooks are the lock-in. Once a production's house style lives in a
+Sluglint rulebook, that rulebook is theirs and leaving means rebuilding it.
+
+---
+
+## What could an integration deal be worth?
+
+You asked directly, so here is a direct answer with the uncertainty attached.
+These are industry heuristics applied to a project with no users yet. Treat them
+as ranges to negotiate against, not forecasts.
+
+**OEM or embedded licence.** A screenwriting vendor (WriterDuet, Celtx, Arc
+Studio, Fade In) putting Sluglint inside their editor. Small vendors in this
+market are small businesses, and a realistic first deal is **$15k to $60k a
+year**, or a per-seat royalty of roughly $0.50 to $2 per subscriber per year. A
+major (Final Draft, or Cast and Crew who own a chunk of the production stack)
+could justify **$75k to $250k a year**, but they move slowly, will demand an
+indemnity, and will ask whether they should just build it.
+
+**What actually moves those numbers:** a measured precision figure on real
+scripts, at least one named production using it, and PDF ingestion. Without PDF
+ingestion the integration story is weak, because their users' scripts are PDFs.
+
+**Direct production or studio licences.** $5k to $25k a year per production
+company for level 3, higher for a studio with a slate. Realistic to sell one or
+two on a relationship before there is any product marketing.
+
+**Selling the whole thing.** Blunt version: **pre-revenue with no users, it is
+worth roughly nothing** as an acquisition. Nobody buys a linter with zero
+adoption. What it is worth today is as a portfolio artifact and a door-opener.
+
+With traction, the usual shapes:
+
+| Stage | Rough valuation |
+|---|---|
+| No users, no revenue | Effectively $0. An acquihire values you, not it |
+| A few hundred users, no revenue | $0 to $50k, mostly a talent conversation |
+| $50k ARR | $150k to $400k (3x to 8x, vertical SaaS range) |
+| $250k ARR with production logos | $750k to $2M |
+| $1M ARR | $3M to $8M, and a strategic buyer might stretch past that |
+
+Vertical SaaS in a small market trades at the low end of those multiples,
+because the total addressable market is genuinely small. There are tens of
+thousands of working screenwriters, not millions. A strategic buyer pays for the
+rulebook and the position rather than the code, which is the argument for
+growing the rulebook and getting real production users above everything else.
+
+**The honest read.** The most likely good outcome is not an acquisition. It is a
+handful of production and vendor licences, a few thousand noncommercial users
+who make the rulebook better, and a portfolio piece that is hard to argue with
+in an interview. Optimise for that and the bigger outcome stays possible.
 
 ---
 
 ## Sequencing
 
-The order matters more than the tiers.
-
-1. **Now → next:** eval harness with per-rule precision, then **PDF ingestion**.
-   PDF is the single highest-leverage item on the roadmap, because PDF is the
-   format scripts actually circulate in. Without it, level 2 addresses a
+1. **PDF ingestion.** Highest leverage on the roadmap. PDF is the format scripts
+   circulate in, and without it both level 2 and any integration deal address a
    fraction of the real market.
-2. **Then:** level 2 as a thin FastAPI wrapper over `run_lint` plus an annotated
-   script view. The accept/dismiss loop from day one — it's the labelled data.
-3. **Only then:** level 3, and only with a real production as a design partner.
-   Building breakdown exports without one is guessing.
+2. **Precision measurement.** Recall is measured. Precision is not. Either a
+   Creative Commons corpus large enough to matter, or a human verdict on every
+   finding across a private corpus.
+3. **Level 2 as a thin FastAPI wrapper** over `run_lint`, with accept and
+   dismiss from day one.
+4. **Level 3, only with a real production as a design partner.** Building
+   breakdown exports without one is guessing.
 
-## What would make me abandon this
+## What would make me stop
 
-Stated up front so it's a decision and not a slow drift:
+Written down now so it stays a decision rather than a slow drift.
 
-- **The eval harness shows the rules can't clear 0.9 precision** on real
-  scripts, not fixtures. A linter that cries wolf is worse than no linter, and
-  no amount of product wrapping fixes it.
+- **Precision cannot clear 0.9 on real scripts.** A linter that cries wolf is
+  worse than no linter, and no amount of product wrapping fixes it.
 - **Nobody re-runs it.** If level 2 usage is one script per user and no second
-  draft, there is no subscription — it's a one-shot tool and should be priced
-  and positioned like one.
-- **A coverage tool ships a credible deterministic pass** and gives it away.
+  draft, there is no subscription. It is a one-shot tool and should be priced
+  like one.
+- **A coverage tool ships a credible deterministic pass and gives it away.**
   Then the wedge is gone and the honest move is to focus entirely on level 3,
-  where the competitor isn't a coverage tool.
+  where the competitor is a script coordinator's time.

@@ -1,8 +1,8 @@
-"""Tier 3 — LLM rubric judges for soft/craft rules.
+"""Tier 3 LLM rubric judges for soft and craft rules.
 
 Design decisions that matter for precision:
-  * One scoped rubric per rule (id, principle, few-shot pairs) — never a
-    single "critique this script" prompt.
+  * One scoped rubric per rule (id, principle, few-shot pairs). There is no
+    single "critique this script" prompt anywhere in this file.
   * Scene-window chunking with a global context header (title, character
     list) so judgments stay grounded.
   * Strict JSON output contract enforced by the API (structured outputs), so
@@ -14,12 +14,12 @@ Design decisions that matter for precision:
 Two settings here are deliberate, not defaults:
 
   * `thinking` is disabled. The current Sonnet runs adaptive thinking when the
-    parameter is omitted, and `max_tokens` caps thinking *plus* output — a
+    parameter is omitted, and `max_tokens` caps thinking *plus* output, so a
     judge returning a long findings array would truncate mid-JSON.
-  * `effort: low`. This is extraction against a fixed rubric, not open-ended
-    reasoning; low effort keeps the per-script cost in cents.
+  * `effort: low`. The judge extracts findings against a fixed rubric, which
+    is shallow work, and low effort keeps the per-script cost in cents.
 
-Requires ANTHROPIC_API_KEY. Without it, tier 3 is skipped with a notice —
+Requires ANTHROPIC_API_KEY. Without it, tier 3 is skipped with a notice and
 tiers 1-2 still run. Swap the client for anthropic.AnthropicBedrock to run
 on AWS Bedrock instead.
 """
@@ -104,7 +104,7 @@ def _parse_findings(text: str) -> list[dict]:
 
     Structured outputs make the happy path a plain json.loads. The bracket
     scan is a fallback for a model set via SLUGLINT_MODEL that does not
-    support the schema contract — the engine degrades rather than crashes.
+    support the schema contract. The engine degrades rather than crashes.
     """
     cleaned = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
     try:

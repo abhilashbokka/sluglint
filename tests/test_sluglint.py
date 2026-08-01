@@ -1,6 +1,6 @@
 """Behaviour tests. Run: PYTHONPATH=src pytest -q
 
-Structure mirrors the project's core claim — that a linter's accuracy can be
+Structure mirrors the project's core claim, that a linter's accuracy can be
 measured:
 
   * `test_every_rule_fires` is a POSITIVE case per deterministic rule: a
@@ -226,7 +226,7 @@ SNIPPETS = [
     ("F024", "INT. BAR - DAY\n\nEXT. STREET - DAY\n\nCars pass.\n", {}),
     ("F025", "INT. BAR - DAY\n\nHe drinks.\n\n(MORE)\n\nCONTINUED:\n", {}),
     ("F026", "INT. BAR - DAY\n\n\tHe drinks slowly.\n", {}),
-    ("F027", "INT. BAR - DAY\n\nHe says “no” and leaves.\n", {}),
+    ("F027", "INT. BAR - DAY\n\nHe says \u201cno\u201d and leaves.\n", {}),
     ("F028", "INT. BAR - DAY\n\nHe opens the door (and stops.\n", {}),
     ("F029", "INT. BAR - DAY\n\nHe drinks.\n", {"min_pages": 0}),
     ("F030", "INT. BAR - DAY\n\nHe drinks.\n", {"min_pages": 0}),
@@ -311,7 +311,7 @@ PROFILE_SNIPPETS = [
     ("F044", "indian-regional", "EXT. RIVER - DAY\n\nA song sequence carries them downriver.\n", {}),
     ("F045", "indian-regional", "EXT. RIVER - DAY\n\nHe rows.\n", {}),
     ("F046", "indian-regional",
-     "EXT. RIVER - DAY\n\nRAJU (30s) rows.\n\nRAJU\nHi.\n\nరాజు\nHi again.\n", {}),
+     "EXT. RIVER - DAY\n\nRAJU (30s) rows.\n\nRAJU\nHi.\n\n\u0c30\u0c3e\u0c1c\u0c41\nHi again.\n", {}),
     ("C027", "tv-pilot",
      ("".join(f"INT. {c} - DAY\n\nx\n\n" for c in "ABCDE")
       + "INT. F - DAY\n\nNURSE (30s) arrives.\n\nNURSE\n1.\n\n"

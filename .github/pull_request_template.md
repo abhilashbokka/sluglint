@@ -7,7 +7,7 @@
 ## Rulebook changes
 
 - [ ] No rules added, removed, or retuned
-- [ ] Rules added/changed — every one below is filled in:
+- [ ] Rules added/changed, every one below is filled in:
 
 | Rule id | Tier | Severity | New / changed | Profiles |
 |---|---|---|---|---|
@@ -15,7 +15,7 @@
 
 For each **new** rule:
 
-- [ ] `principle:` is an original formulation — **no text reproduced from a screenwriting book**
+- [ ] `principle:` is an original formulation, **no text reproduced from a screenwriting book**
 - [ ] `source:` attributes where the underlying convention is taught
 - [ ] Tier 1/2 only: a `detect:` key with a registered handler (`sluglint rules --check` passes)
 - [ ] Tier 1/2 only: a positive fixture in `SNIPPETS` / `PROFILE_SNIPPETS` so the rule provably fires
@@ -25,9 +25,12 @@ For each **new** rule:
 ## Checks
 
 - [ ] `pytest -q` green
+- [ ] `python benchmark/run.py` runs and `benchmark/REPORT.md` is regenerated
+- [ ] No em dashes added
 - [ ] `ruff check .` and `pylint src/sluglint` clean
 - [ ] README badges still truthful (rule count, test count)
-- [ ] No API keys, tokens, or personal data added anywhere — including fixtures
+- [ ] No API keys, tokens, or personal data added anywhere, including fixtures
+- [ ] No third-party screenplay text committed
 
 ## Scope boundary
 

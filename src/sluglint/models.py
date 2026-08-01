@@ -3,8 +3,8 @@
 A parsed script is a list of Scenes; each Scene is a list of Elements.
 Findings are the universal output unit of every lint tier.
 
-Elements keep more than the linters strictly need — the raw source line, the
-character extension, the dual-dialogue marker — because tier-1 rules about
+Elements keep more than the linters strictly need: the raw source line, the
+character extension, the dual-dialogue marker. Tier-1 rules about
 document hygiene (stray tabs, smart quotes, pagination artifacts) can only be
 checked against text the parser has *not* normalized.
 """

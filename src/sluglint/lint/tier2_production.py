@@ -1,4 +1,4 @@
-"""Tier 2 — production and volume metrics.
+"""Tier 2 production and volume metrics.
 
 These rules answer questions a line producer asks before a script goes into
 prep: how many speaking parts, how many distinct sets, what share of the
@@ -90,7 +90,7 @@ def lead_absence_gap(script: Script, rule: Rule):
                 longest, start = run, run_start
     ratio = longest / len(script.scenes)
     if ratio > float(rule.params.get("max_gap_ratio", 0.25)):
-        yield finding(rule, f"'{lead}' — the most-spoken character — is absent for "
+        yield finding(rule, f"'{lead}', the most-spoken character, is absent for "
                             f"{longest} consecutive scenes ({ratio:.0%} of the script), "
                             f"from scene {start + 1}.",
                       scene_index=start, evidence=f"{lead} absence gap",

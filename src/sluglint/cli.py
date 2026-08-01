@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"All {len(rules)} rules in profile '{profile}' resolve to an "
                   f"implementation or an LLM rubric.")
             return 0
-        print(f"Profile: {profile} — {book.profiles[profile].name}")
+        print(f"Profile: {profile} ({book.profiles[profile].name})")
         print(f"{book.profiles[profile].description}\n")
         shown = [r for r in rules if args.tier is None or r.tier == args.tier]
         for r in shown:

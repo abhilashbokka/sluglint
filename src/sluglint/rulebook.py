@@ -1,7 +1,7 @@
 """Load and query the YAML rulebook. Rules are data; engines dispatch on them.
 
 A rule with no `profiles:` key applies to every profile. A rule that lists
-profiles applies only to those — which is how one rulebook holds both "scene
+profiles applies only to those. That is how one rulebook holds both "scene
 numbers are an amateur tell" (spec) and "scene numbers are mandatory"
 (shooting script) without either becoming a special case in code.
 """

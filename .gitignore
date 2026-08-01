@@ -7,9 +7,14 @@ dist/
 out.json
 .env
 
-# local research / scratch — never publish
+# local research / scratch, never publish
 *.pdf
 .DS_Store
 .venv/
 venv/
 .ruff_cache/
+
+# Benchmark corpus: scripts must be added deliberately after a licence check,
+# never swept in by `git add -A`.
+benchmark/corpus/*.fountain
+benchmark/corpus/*.txt

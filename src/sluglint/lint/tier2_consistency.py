@@ -1,4 +1,4 @@
-"""Tier 2 — consistency engine.
+"""Tier 2 consistency engine.
 
 Runs over the parsed structure (character registry, location registry, scene
 timeline) with fuzzy matching. Still deterministic and still free: nothing
@@ -6,9 +6,9 @@ here calls a model.
 
 The recurring precision problem in this tier is that a name, a place, and a
 prop are all just capitalised words. Handlers therefore anchor on a second
-signal wherever they can — an age parenthetical for a character introduction,
-an article for a prop, a known cue name for a spelling drift — rather than
-flagging every capitalised token they find.
+signal wherever they can: an age parenthetical for a character introduction,
+an article for a prop, a known cue name for a spelling drift. That is why they
+do not flag every capitalised token they find.
 
 Production and volume metrics live in tier2_production.py.
 """
@@ -28,10 +28,10 @@ AGE_HINT = re.compile(
     re.IGNORECASE,
 )
 # A capitalised name followed by an age parenthetical: an unambiguous introduction.
-INTRODUCTION = re.compile(r"\b([A-Z][A-Z'’\-]{2,}(?:\s+[A-Z][A-Z'’\-]{2,})?)\s*\(([^)]{1,40})\)")
-# 'a REVOLVER', 'the LOCKET' — the article is what tells us it is a prop, not a sound.
-PROP = re.compile(r"\b(?:a|an|the|his|her|their|its|my|your)\s+([A-Z][A-Z'’\-]{3,})\b")
-NAME_TOKEN = re.compile(r"\b(?:[A-Z][a-z'’\-]{3,}|[A-Z][A-Z'’\-]{3,})\b")
+INTRODUCTION = re.compile(r"\b([A-Z][A-Z'\u2019\-]{2,}(?:\s+[A-Z][A-Z'\u2019\-]{2,})?)\s*\(([^)]{1,40})\)")
+# 'a REVOLVER', 'the LOCKET'. The article is what marks a prop rather than a sound.
+PROP = re.compile(r"\b(?:a|an|the|his|her|their|its|my|your)\s+([A-Z][A-Z'\u2019\-]{3,})\b")
+NAME_TOKEN = re.compile(r"\b(?:[A-Z][a-z'\u2019\-]{3,}|[A-Z][A-Z'\u2019\-]{3,})\b")
 
 FLASHBACK_OPEN = re.compile(r"\bFLASHBACK\b")
 FLASHBACK_CLOSE = re.compile(r"\b(?:END (?:OF )?FLASHBACK|BACK TO PRESENT|PRESENT DAY)\b")
@@ -215,7 +215,7 @@ def action_name_drift(script: Script, rule: Rule):
     tokens = {m.group(0) for m in NAME_TOKEN.finditer(_action_text(script))}
     reported: set[tuple[str, str]] = set()
     for token in sorted(tokens):
-        upper = re.sub(r"['’]S$", "", token.upper())
+        upper = re.sub(r"['\u2019]S$", "", token.upper())
         if len(upper) < 4 or upper in registry or upper in locations:
             continue
         for name in sorted(registry):
@@ -349,7 +349,7 @@ def continuous_across_locations(script: Script, rule: Rule):
         a, b = _norm_location(prev.location or ""), _norm_location(cur.location or "")
         if a and b and similar(a, b) < 0.6:
             yield finding(
-                rule, f"CONTINUOUS from '{a}' to '{b}' — unrelated locations.",
+                rule, f"CONTINUOUS from '{a}' to '{b}', which are unrelated locations.",
                 line_no=cur.line_no, scene_index=cur.index,
                 evidence=f"CONTINUOUS {a} -> {b}",
                 suggestion="CONTINUOUS means unbroken action; use SAME TIME or a new time marker.",

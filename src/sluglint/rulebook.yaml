@@ -1,6 +1,6 @@
-# Sluglint — rulebook v0.1 (101 rules)
+# Sluglint rulebook v0.1 (101 rules)
 #
-# THE PRODUCT LIVES HERE. Every rule is DATA, not code.
+# THE PRODUCT LIVES HERE. Every rule is DATA that the engine dispatches on.
 #
 # Fields
 #   id:        stable identifier. F = format, C = consistency, S = structure/craft,
@@ -11,7 +11,7 @@
 #   severity:  error | warning | suggestion
 #   principle: OUR OWN original formulation of the rule. Never quoted book text.
 #   source:    attribution for where the underlying convention is taught. These are
-#              inspirations, not citations of reproduced content.
+#              inspirations. Nothing here is a citation of reproduced content.
 #   detect:    (tier 1/2) key the engine dispatches on. One handler per key.
 #   params:    (tier 1/2) thresholds. Never hardcode these in Python.
 #   examples:  (tier 3) few-shot violates/acceptable pairs fed to the judge prompt.
@@ -56,7 +56,7 @@ profiles:
 rules:
 
   # =====================================================================
-  # TIER 1 — DETERMINISTIC FORMAT LINT
+  # TIER 1: DETERMINISTIC FORMAT LINT
   # Pure code over the parse. 100% precision by construction.
   # =====================================================================
 
@@ -136,7 +136,7 @@ rules:
     severity: suggestion
     detect: heading_separator
     principle: >
-      Heading segments are divided by a spaced hyphen. Unspaced hyphens, en
+      Heading segments are divided by a spaced hyphen. Unspaced hyphens, long
       dashes, and commas defeat the parsers that build shooting schedules.
     source: Riley; ProdConv
 
@@ -302,7 +302,7 @@ rules:
     severity: suggestion
     detect: smart_typography
     principle: >
-      Curly quotes, en and em dashes, and single-glyph ellipses are inserted
+      Curly quotes, long dashes, and single-glyph ellipses are inserted
       by word processors and are still mangled by parts of the production
       chain. Straight quotes and plain hyphens travel safely.
     source: ProdConv
@@ -634,7 +634,7 @@ rules:
     source: INConv; ProdConv
 
   # =====================================================================
-  # TIER 2 — CONSISTENCY ENGINE
+  # TIER 2: CONSISTENCY ENGINE
   # Registries, timeline, fuzzy matching over the parsed structure.
   # =====================================================================
 
@@ -974,7 +974,7 @@ rules:
     source: TVConv
 
   # =====================================================================
-  # TIER 3 — LLM RUBRIC JUDGES
+  # TIER 3: LLM RUBRIC JUDGES
   # Soft rules. One scoped rubric per rule, built from this YAML. Zero code.
   # Every finding must carry verbatim evidence that the caller re-verifies.
   # =====================================================================
@@ -1155,7 +1155,7 @@ rules:
     severity: suggestion
     principle: >
       A first appearance should give the reader one specific thing to hold
-      onto — a behaviour, an object, a way of occupying the space. A name and
+      onto: a behaviour, an object, a way of occupying the space. A name and
       an age alone leave the character a blank.
     source: Trottier; Snyder (audience empathy, reworded)
     examples:
@@ -1232,7 +1232,7 @@ rules:
     profiles: [indian-regional]
     principle: >
       In a code-mixed script, how much a character switches languages is
-      characterisation — class, education, region, who they are talking to. A
+      characterisation: class, education, region, who they are talking to. A
       character whose mix changes with no situational reason reads as
       inconsistent rather than bilingual.
     source: INConv; McKee (character voice, reworded)
@@ -1339,7 +1339,7 @@ rules:
     severity: warning
     principle: >
       Dialogue in a language other than the script's primary language must be
-      marked — a parenthetical naming the language, a subtitle note, or a
+      marked with a parenthetical naming the language, a subtitle note, or a
       bracketed translation. Unmarked, it is unshootable and untranslatable.
     source: Riley; ProdConv
     examples:

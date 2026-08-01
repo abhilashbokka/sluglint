@@ -2,8 +2,8 @@
 
 Rules are data; this is the only place that maps a rule's `detect:` key to
 code. A handler is a generator that takes (script, rule) and yields Findings.
-It reads every threshold from `rule.params` — never from a constant in the
-handler — so a rulebook edit changes behaviour with no code change.
+It reads every threshold from `rule.params` rather than from a constant in
+the handler, so a rulebook edit changes behaviour with no code change.
 
 Registering by key rather than dispatching in a long if-chain means the
 engine can also answer "which rules in the YAML have no implementation?",
@@ -42,8 +42,8 @@ def finding(
 ) -> Finding:
     """Build a Finding from a Rule.
 
-    `evidence` must be STABLE across drafts — it is what the diff fingerprints
-    on. Put counts and line numbers in `message`, never in `evidence`, or every
+    `evidence` must be STABLE across drafts. It is what the diff fingerprints
+    on. Put counts and line numbers in `message` and keep `evidence` fixed, or every
     re-lint churns the diff.
     """
     return Finding(

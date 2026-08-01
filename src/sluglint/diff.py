@@ -1,10 +1,10 @@
 """Draft comparison.
 
 Two layers:
-  1. Findings diff — resolved / new / persisting, keyed by Finding.fingerprint
+  1. Findings diff: resolved / new / persisting, keyed by Finding.fingerprint
      (rule + normalized evidence), so a note survives text moving to a
      different page and dies when the underlying defect is actually fixed.
-  2. Structural diff — scenes added / removed / modified, matched by
+  2. Structural diff: scenes added / removed / modified, matched by
      normalized heading with fuzzy content comparison.
 
 This is the retention loop: re-upload draft 2, see exactly what you fixed.

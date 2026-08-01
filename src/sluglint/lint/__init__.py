@@ -2,7 +2,7 @@
 
 Importing this package registers every tier-1 and tier-2 detector, so
 `run_rules` can resolve any `detect:` key in the rulebook. Tier 3 needs no
-registration — its rules carry no code at all.
+registration, because its rules carry no code at all.
 """
 from . import (  # noqa: F401
     tier1_format,

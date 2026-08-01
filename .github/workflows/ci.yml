@@ -26,6 +26,15 @@ jobs:
         run: pylint src/sluglint
       - name: Test
         run: pytest -q
+      - name: Benchmark still runs
+        run: python benchmark/run.py > /dev/null
+      - name: No em dashes anywhere
+        run: |
+          if grep -rInP '[\x{2013}\x{2014}]' --include='*.py' --include='*.md' \
+               --include='*.yaml' --include='*.yml' --include='*.toml' \
+               --include='*.fountain' . ; then
+            echo "em or en dash found; use a comma, colon, or full stop" && exit 1
+          fi
       - name: Every rule resolves to an implementation
         run: |
           for profile in us-spec-feature tv-pilot shooting-script indian-regional; do

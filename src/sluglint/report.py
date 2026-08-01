@@ -22,7 +22,7 @@ def _sorted(findings: list[Finding]) -> list[Finding]:
 
 def render_console(script: Script, findings: list[Finding], notices: list[str],
                    profile: str = "") -> str:
-    header = f"Sluglint — {script.title or script.path}"
+    header = f"Sluglint: {script.title or script.path}"
     lines = [
         header,
         f"{len(script.scenes)} scenes | ~{script.estimated_pages} pages | "
@@ -66,7 +66,7 @@ def render_diff_console(diff: DraftDiff) -> str:
                          ("PERSISTING", fd.persisting)):
         if group:
             lines.append(f"{label}:")
-            lines += [f"  {ICON[f.severity]} {f.rule_id} {f.rule_name} — {f.message}"
+            lines += [f"  {ICON[f.severity]} {f.rule_id} {f.rule_name}: {f.message}"
                       for f in _sorted(group)]
             lines.append("")
     if diff.scenes:

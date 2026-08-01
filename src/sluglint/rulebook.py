@@ -38,9 +38,17 @@ class Rule:
     params: dict = field(default_factory=dict)
     examples: list = field(default_factory=list)
     profiles: list[str] = field(default_factory=list)  # empty = applies to all
+    # Per-profile amendment to the principle, for rules that hold everywhere but
+    # need different boundaries in one market. A Telugu draft is written in
+    # transliterated Telugu, so the spelling rule has to be told that a word
+    # outside an English dictionary is the norm rather than a typo.
+    profile_notes: dict[str, str] = field(default_factory=dict)
 
     def applies_to(self, profile: str) -> bool:
         return not self.profiles or profile in self.profiles
+
+    def note_for(self, profile: str) -> str:
+        return self.profile_notes.get(profile, "")
 
 
 @dataclass
@@ -84,6 +92,8 @@ def load_rulebook(path: str | Path | None = None) -> Rulebook:
             source=raw.get("source", ""), detect=raw.get("detect", ""),
             params=raw.get("params", {}) or {}, examples=raw.get("examples", []) or [],
             profiles=list(raw.get("profiles", []) or []),
+            profile_notes={k: " ".join(str(v).split())
+                           for k, v in (raw.get("profile_notes", {}) or {}).items()},
         )
         for raw in data.get("rules", [])
     ]

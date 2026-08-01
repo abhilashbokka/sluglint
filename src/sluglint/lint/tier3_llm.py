@@ -79,10 +79,12 @@ Return findings against the schema you have been given.
 - confidence in [0,1]. Return an empty list if nothing violates the rules."""
 
 
-def _rubric(rules: list[Rule]) -> str:
+def _rubric(rules: list[Rule], profile: str = "") -> str:
     parts = []
     for r in rules:
         block = f"[{r.id}] {r.name} (severity: {r.severity})\n  Principle: {r.principle}"
+        if note := r.note_for(profile):
+            block += f"\n  In this profile: {note}"
         for ex in r.examples[:2]:
             if isinstance(ex, dict):
                 block += f"\n  Violates: {ex.get('bad', '')}\n  Acceptable: {ex.get('good', '')}"
@@ -126,7 +128,7 @@ def _parse_findings(text: str) -> list[dict]:
 
 
 def run(script: Script, rules: list[Rule], model: str = DEFAULT_MODEL,
-        min_confidence: float = 0.6) -> tuple[list[Finding], list[str]]:
+        min_confidence: float = 0.6, profile: str = "") -> tuple[list[Finding], list[str]]:
     """-> (findings, notices). Never raises on missing key; returns a notice instead."""
     notices: list[str] = []
     if not rules:
@@ -141,7 +143,7 @@ def run(script: Script, rules: list[Rule], model: str = DEFAULT_MODEL,
     client = anthropic.Anthropic()
     rule_map = {r.id: r for r in rules}
     characters = ", ".join(sorted(script.character_registry())) or "none detected"
-    rubric = _rubric(rules)
+    rubric = _rubric(rules, profile)
     findings: list[Finding] = []
 
     for chunk in _chunks(script):

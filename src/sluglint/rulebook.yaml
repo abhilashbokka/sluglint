@@ -1262,6 +1262,15 @@ rules:
       sentence fragments, ALL-CAPS emphasis on sounds/props, and invented
       proper nouns used consistently are not errors.
     source: SpecConv
+    profile_notes:
+      indian-regional: >
+        Dialogue here is routinely Telugu, Hindi, or Tamil written in Latin
+        letters (Tenglish, Hinglish). There is no standard romanisation, so a
+        word absent from an English dictionary is the normal case and never a
+        typo on its own. Judge only the English prose in action lines and
+        sluglines. Within transliterated dialogue, flag nothing unless the
+        same word is spelled two ways in the same speech, which is
+        inconsistency rather than spelling.
 
   - id: L003
     name: Passive voice in action lines
@@ -1345,3 +1354,9 @@ rules:
     examples:
       - bad: "RAJU: Nuvvu ekkada unnavu?"
         good: "RAJU (in Telugu, subtitled): Nuvvu ekkada unnavu?"
+    profile_notes:
+      indian-regional: >
+        The script's own language is the regional one, so transliterated
+        dialogue is the default and needs no marking. What needs marking here
+        is the reverse: a switch into a language the audience is not assumed
+        to follow, and any dialogue the film intends to subtitle on screen.

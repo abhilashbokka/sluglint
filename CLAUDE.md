@@ -12,7 +12,7 @@ consistency engine over parsed structure (registries, timeline, fuzzy matching),
 then **T3** LLM rubric judges for soft/craft rules (Claude, one scoped rubric per
 rule).
 
-**101 rules across 4 profiles** (`us-spec-feature` default, `tv-pilot`,
+**106 rules across 4 profiles** (`us-spec-feature` default, `tv-pilot`,
 `shooting-script`, `indian-regional`). A rule with no `profiles:` key applies to
 all; one that lists them applies only to those.
 
@@ -25,7 +25,7 @@ the extras here (`pdfplumber`, `anthropic`) are the project's, not the machine's
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,pdf,llm,indic]"            # dev only: drop the extras
 
-pytest -q                                        # 133 tests, must stay green
+pytest -q                                        # 153 tests, must stay green
 ruff check . && pylint src/sluglint              # must stay clean (10.00/10)
 
 python -m sluglint.cli lint examples/the_last_train.fountain
@@ -33,6 +33,7 @@ python -m sluglint.cli lint script.pdf                  # needs the [pdf] extra
 python -m sluglint.cli convert script.pdf               # inspect the recovered Fountain
 python -m sluglint.cli lint --profile tv-pilot examples/night_shift_pilot.fountain
 python -m sluglint.cli diff examples/the_last_train.fountain examples/the_last_train_v2.fountain
+python -m sluglint.cli stats script.pdf --html out.html  # the dashboard view
 python -m sluglint.cli rules --tier 2            # browse
 python -m sluglint.cli rules --check             # fail if a rule has no handler
 
@@ -51,7 +52,7 @@ itself skipped. Keep it that way.
 
 | Path | Role |
 |---|---|
-| `src/sluglint/rulebook.yaml` | THE product. 101 rules + 4 profile definitions, as data. |
+| `src/sluglint/rulebook.yaml` | THE PRODUCT. 106 rules, 4 profiles, genre signatures and comparable bands, all as data. |
 | `src/sluglint/indic.py` | Folds Telugu/Devanagari/Tamil names onto one comparison key so tier-2 fuzzy matching works on an abugida and across writing systems. `indic-transliteration` behind the `indic` extra, graceful without it. |
 | `src/sluglint/ingest/pdf.py` | PDF to Fountain by margin geometry. Learns the document's own margins, drops printer furniture, refuses PDFs it cannot read. `pdfplumber` behind the `pdf` extra. |
 | `src/sluglint/parser.py` | Fountain-lite → `Script{Scenes[Elements]}`. Forgiving on purpose. Keeps raw lines, extensions, dual markers, scene numbers, act markers. |
@@ -64,11 +65,13 @@ itself skipped. Keep it that way.
 | `src/sluglint/lint/tier2_production.py` | Cast size, location load, night ratio, lead absence. |
 | `src/sluglint/lint/tier3_llm.py` | Claude judges: rubric build, chunking, schema-enforced JSON, hallucination filters. |
 | `src/sluglint/diff.py` | Resolved/new/persisting findings + scene-level diff. |
+| `src/sluglint/metrics.py` | Production numbers with no verdict attached: presence per character, page load per location, day/night split, company moves, genre signals. Arithmetic only. |
+| `src/sluglint/dashboard.py` | The stats view as a self-contained HTML page. No JS, no network, no script text. |
 | `src/sluglint/report.py` | Console/JSON rendering. |
-| `src/sluglint/cli.py` | `lint` / `diff` / `rules`. |
+| `src/sluglint/cli.py` | `lint` / `stats` / `diff` / `rules` / `convert`. |
 | `examples/` | `clean_pages` (must stay clean), one fixture per profile, the v1 to v2 diff pair. |
 | `benchmark/` | `run.py` injects known defects and measures recall. `local_report.py` lints a private corpus for the precision pass. `corpus/` and `local/` are both gitignored. |
-| `tests/` | 133 tests. Positive fixture per deterministic rule + clean-script gate. |
+| `tests/` | 153 tests. Positive fixture per deterministic rule + clean-script gate. |
 | `docs/` | Competitive landscape, product and business model, script licensing. |
 
 ## Hard rules for working in this repo
@@ -104,7 +107,11 @@ itself skipped. Keep it that way.
    fixtures, or git history, ever. Config via env vars only.
    No third-party screenplay text is ever committed. `benchmark/corpus/` is
    gitignored for exactly that reason; see `docs/public-domain-scripts.md`.
-10. **Scope boundary, do not cross it.** Sluglint checks the screenplay as a
+10. **Scope boundary, do not cross it.** The metrics layer reports numbers and
+    the genre signatures count bands; neither is allowed to become a verdict.
+    Genre is an observable category, which is why it is permitted at all. Never
+    add a "jokes per page", a quality score, or a generated logline to the
+    deterministic tiers. Sluglint checks the screenplay as a
     *document*: formatting, internal consistency (characters, locations, time),
     and craft rules about how scenes and lines are written. It does NOT evaluate
     plot logic, premise, theme, or whether the story is good. Never add a rule

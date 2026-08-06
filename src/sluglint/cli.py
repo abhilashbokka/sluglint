@@ -3,6 +3,7 @@
   sluglint lint    SCRIPT [--profile P] [--llm] [--json OUT] [--rules PATH]
   sluglint diff    OLD NEW [--profile P] [--llm] [--rules PATH]
   sluglint rules   [--profile P] [--tier N] [--check] [--rules PATH]
+  sluglint stats   SCRIPT [--profile P] [--json OUT] [--html OUT]
   sluglint convert SCRIPT.pdf [--out FILE]
 
 SCRIPT may be Fountain text or a PDF; the ingester picks the reader.
@@ -17,6 +18,7 @@ import sys
 from pathlib import Path
 
 from . import diff as diffmod
+from . import metrics as metricsmod
 from . import report
 from .ingest import load_script
 from .lint import run_rules, tier3_llm, unimplemented
@@ -67,6 +69,14 @@ def main(argv: list[str] | None = None) -> int:
                     help="fail if any tier-1/2 rule has no implementation")
     _add_common(pr)
 
+    ps = sub.add_parser("stats", help="production numbers, with no findings attached")
+    ps.add_argument("script", type=Path)
+    ps.add_argument("--json", type=Path, default=None, help="also write the numbers here")
+    ps.add_argument("--html", type=Path, default=None,
+                    help="write the dashboard view here and open it in a browser")
+    ps.add_argument("--top", type=int, default=12, help="rows per table (default 12)")
+    _add_common(ps)
+
     pc = sub.add_parser("convert", help="show the Fountain text recovered from a PDF")
     pc.add_argument("script", type=Path)
     pc.add_argument("--out", type=Path, default=None, help="write it here instead of stdout")
@@ -109,6 +119,33 @@ def main(argv: list[str] | None = None) -> int:
                                  encoding="utf-8")
             print(f"\nJSON written to {args.json}")
         return 1 if any(f.severity.value == "error" for f in findings) else 0
+
+    if args.cmd == "stats":
+        try:
+            script, ingest_notes = load_script(args.script)
+        except RuntimeError as exc:
+            print(exc, file=sys.stderr)
+            return 2
+        m = metricsmod.analyse(script)
+        genres = metricsmod.score_genres(m.signals, book.genres) if m.signals else []
+        bands = metricsmod.compare(m, book.comparables.get(profile, {}))
+        print(report.render_stats_console(m, genres, bands, top=args.top))
+        for note in ingest_notes:
+            print(f"\nnote: {note}", file=sys.stderr)
+        if args.json:
+            args.json.write_text(
+                report.stats_to_json(m, genres, bands, profile=profile), encoding="utf-8")
+            print(f"\nJSON written to {args.json}")
+        if args.html:
+            from . import dashboard  # noqa: PLC0415 - only needed for this flag
+            args.html.write_text(
+                "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">"
+                "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                f"<title>{script.title or args.script.name} stats</title></head><body>"
+                + dashboard.render(m, genres, bands, profile=profile, top=args.top)
+                + "</body></html>", encoding="utf-8")
+            print(f"\nDashboard written to {args.html}")
+        return 0
 
     if args.cmd == "diff":
         (old_s, _), (new_s, _) = load_script(args.old), load_script(args.new)

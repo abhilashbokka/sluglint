@@ -130,3 +130,56 @@ def late_series_regular(script: Script, rule: Rule):
                           scene_index=min(scene_idxs), evidence=f"{name} introduced late",
                           suggestion="A pilot introduces the cast the series runs on. "
                                      "Bring them in earlier.")
+
+
+# ---- load metrics, added with the metrics layer -----------------------------
+# These read the same numbers `sluglint stats` prints. The stats view reports
+# them unconditionally because a producer wants them either way; these fire
+# only past a threshold, because a finding is a claim that something is wrong.
+
+@detector("company_moves")
+def company_moves(script: Script, rule: Rule):
+    scenes = script.scenes
+    if len(scenes) < int(rule.params.get("min_scenes", 25)):
+        return
+    ordered = [(s.location or "").strip().upper() for s in scenes]
+    moves = sum(1 for a, b in zip(ordered, ordered[1:]) if a != b)
+    ratio = moves / max(len(scenes) - 1, 1)
+    if ratio > float(rule.params.get("max_ratio", 0.85)):
+        yield finding(rule, f"{moves} company moves across {len(scenes)} scenes "
+                            f"({ratio:.0%} of cuts change location).",
+                      evidence="company moves per scene",
+                      suggestion="Grouping scenes that share a set is where a "
+                                 "schedule finds its days.")
+
+
+@detector("single_use_location")
+def single_use_location(script: Script, rule: Rule):
+    locations: dict[str, float] = {}
+    for sc in script.scenes:
+        name = (sc.location or "").strip().upper()
+        if name:
+            locations[name] = locations.get(name, 0.0) + sc.estimated_pages
+    if len(locations) < int(rule.params.get("min_locations", 12)):
+        return
+    limit = float(rule.params.get("max_pages", 0.5))
+    slivers = sorted(name for name, pages in locations.items() if pages < limit)
+    if len(slivers) > len(locations) / 3:
+        yield finding(rule, f"{len(slivers)} of {len(locations)} locations carry under "
+                            f"{limit:g} of a page each.",
+                      evidence="locations under half a page",
+                      suggestion=f"Each is still a move and a setup. First few: "
+                                 f"{', '.join(slivers[:4])}.")
+
+
+@detector("one_scene_wonder")
+def one_scene_wonder(script: Script, rule: Rule):
+    registry = script.character_registry()
+    counts = script.dialogue_counts()
+    floor = int(rule.params.get("min_lines", 12))
+    for name, scene_idxs in registry.items():
+        if len(scene_idxs) == 1 and counts.get(name, 0) >= floor:
+            yield finding(rule, f"'{name}' speaks {counts[name]} lines, all inside one scene.",
+                          scene_index=scene_idxs[0], evidence=f"{name} single scene role",
+                          suggestion="A part this size is a full casting process for one "
+                                     "day. Either spread them or trim the part.")

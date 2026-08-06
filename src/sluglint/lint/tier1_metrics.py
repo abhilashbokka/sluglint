@@ -288,3 +288,31 @@ def mixed_script_cue(script: Script, rule: Rule):
                             f"{len(native)} in a native script.",
                       evidence="mixed writing systems in character cues",
                       suggestion=f"Pick one. Native-script cues: {', '.join(native[:5])}")
+
+
+@detector("sliver_scene")
+def sliver_scene(script: Script, rule: Rule):
+    if len(script.scenes) < int(rule.params.get("min_scenes", 20)):
+        return
+    floor = int(rule.params.get("min_eighths", 1)) / 8.0
+    slivers = [sc for sc in script.scenes if 0 < sc.estimated_pages < floor]
+    if len(slivers) > len(script.scenes) / 5:
+        yield finding(rule, f"{len(slivers)} of {len(script.scenes)} scenes run under "
+                            f"an eighth of a page.",
+                      evidence="scenes under one eighth",
+                      suggestion="Each still takes a scene number and a strip on the "
+                                 "board. A run of them usually wants a montage header.")
+
+
+@detector("unstaged_scene")
+def unstaged_scene(script: Script, rule: Rule):
+    floor = int(rule.params.get("min_lines", 8))
+    for sc in script.scenes:
+        dialogue = sum(1 for el in sc.elements if el.type == ElementType.DIALOGUE)
+        action = sum(1 for el in sc.elements if el.type == ElementType.ACTION)
+        if dialogue >= floor and action == 0:
+            yield finding(rule, f"{dialogue} lines of dialogue and no action line in "
+                                f"this scene.",
+                          line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
+                          suggestion="One line of what the room is doing gives the "
+                                     "director staging and the reader a picture.")

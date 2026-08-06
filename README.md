@@ -7,8 +7,8 @@ severity, a line number, a source, and a suggested fix. It never offers an
 opinion about whether your story is good.
 
 ![Python](https://img.shields.io/badge/python-3.10+-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-133%20passing-2ea44f)
-![Rulebook](https://img.shields.io/badge/rulebook-101%20rules%20as%20data-E8A33D)
+![Tests](https://img.shields.io/badge/tests-153%20passing-2ea44f)
+![Rulebook](https://img.shields.io/badge/rulebook-106%20rules%20as%20data-E8A33D)
 ![Benchmark](https://img.shields.io/badge/injected%20defect%20recall-97%25-2ea44f)
 ![Lint](https://img.shields.io/badge/pylint-10.00%2F10-2ea44f)
 ![LLM tier](https://img.shields.io/badge/LLM%20tier-Claude-D97757?logo=anthropic&logoColor=white)
@@ -70,14 +70,15 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,pdf,llm,indic]"   # pdf: read PDFs. llm: Claude tier.
                                         # indic: match names across writing systems
 
-sluglint rules                                   # browse all 101 rules
+sluglint rules                                   # browse all 106 rules
 sluglint lint script.fountain                    # tiers 1+2, free, no API key
 sluglint lint script.pdf                         # same rules, read from the PDF
 sluglint lint script.fountain --llm --json out.json
 sluglint diff draft1.fountain draft2.fountain    # what did I actually fix?
+sluglint stats script.pdf --html out.html         # cast, sets, schedule load
 sluglint convert script.pdf                      # see what we think the PDF says
 
-pytest -q                                        # 133 tests
+pytest -q                                        # 153 tests
 python benchmark/run.py                          # regenerate the numbers below
 ```
 
@@ -99,7 +100,7 @@ LLM-judged only where nothing else will do.
 flowchart LR
     IN[".fountain / .txt / .pdf<br/><i>FDX next</i>"] --> P["<b>Parser</b><br/>Fountain-lite,<br/>deliberately forgiving"]
     P --> S["<b>Script model</b><br/>scenes, elements,<br/>character and location registries"]
-    RB[("<b>rulebook.yaml</b><br/>101 rules as data<br/>4 profiles")] -.-> T1 & T2 & T3
+    RB[("<b>rulebook.yaml</b><br/>106 rules as data<br/>4 profiles")] -.-> T1 & T2 & T3
     S --> T1["<b>Tier 1, Format</b><br/>46 rules, pure code"]
     S --> T2["<b>Tier 2, Consistency</b><br/>27 rules, registries<br/>and fuzzy matching"]
     S --> T3["<b>Tier 3, Craft</b><br/>28 rules, Claude,<br/>one rubric each"]
@@ -330,7 +331,7 @@ Full analysis with pricing and an honest risk list:
 |---|---|---|---|
 | | Free for writers, always | **Free while in beta** | For writers' rooms and production |
 | **Who** | Writers who live in a terminal, and developers | Writers who want a web app and draft history | Showrunners, line producers, script coordinators |
-| **What** | 101 rules, 4 profiles, CLI, JSON, draft diff, CI exit codes, the benchmark harness | Everything in 1, plus an annotated script view, accept or dismiss per finding, a draft timeline, PDF and FDX import, hosted LLM tier | Everything in 2, plus shared team rulebooks, breakdown exports, cast and location and night-shoot reports, API, SSO |
+| **What** | 106 rules, 4 profiles, CLI, JSON, draft diff, the stats dashboard, CI exit codes, the benchmark harness | Everything in 1, plus an annotated script view, accept or dismiss per finding, a draft timeline, PDF and FDX import, hosted LLM tier | Everything in 2, plus shared team rulebooks, breakdown exports, cast and location and night-shoot reports, API, SSO |
 
 Level 2 is free while it is in beta. Early users keep that access through the
 beta and get told well before anything changes.
@@ -343,7 +344,7 @@ Reasoning, pricing hypotheses, and what is deliberately never paywalled:
 ## Repo layout
 
 ```
-src/sluglint/rulebook.yaml     THE PRODUCT: 101 rules as data, 4 profiles
+src/sluglint/rulebook.yaml     THE PRODUCT: 106 rules as data, 4 profiles
 src/sluglint/
   parser.py                    Fountain-lite to Script/Scene/Element
   models.py                    dataclasses plus Finding (with diff fingerprint)
@@ -359,7 +360,7 @@ src/sluglint/
   cli.py                       lint | diff | rules
 benchmark/                     fault injection, measured recall, draft drift
 examples/                      one clean fixture, one per profile, a v1-to-v2 pair
-tests/                         133 tests
+tests/                         153 tests
 docs/                          market, business model, script licensing
 ```
 
@@ -367,7 +368,7 @@ docs/                          market, business model, script licensing
 
 ## Roadmap
 
-- [x] **v0.1** three-tier engine, 101-rule rulebook, 4 profiles, draft diffing, CLI, 133 tests, fault-injection benchmark
+- [x] **v0.1** three-tier engine, 106-rule rulebook, 4 profiles, draft diffing, CLI, 153 tests, fault-injection benchmark
 - [x] **PDF ingestion** by margin geometry, feeding the same script model ([docs/pdf-ingestion.md](docs/pdf-ingestion.md))
 - [ ] FDX ingestion, and an OCR fallback for pre-Unicode Indic fonts
 - [ ] A corpus of freely licensed scripts, so precision gets measured the way recall already is

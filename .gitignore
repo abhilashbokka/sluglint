@@ -9,6 +9,7 @@ out.json
 
 # local research / scratch, never publish
 *.pdf
+*.docx
 .DS_Store
 .venv/
 venv/

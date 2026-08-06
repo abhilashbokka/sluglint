@@ -52,9 +52,26 @@ class Rule:
 
 
 @dataclass
+class Genre:
+    """A named set of bands over measurements, never a verdict.
+
+    Genre is an observable category rather than a judgment of quality, which is
+    the only reason it belongs in this rulebook at all. The bands are data so
+    they can be argued with, and so they can be replaced by measured values
+    the day a licensed corpus exists to measure them from.
+    """
+    key: str
+    name: str
+    principle: str = ""
+    signals: dict[str, list[float]] = field(default_factory=dict)
+
+
+@dataclass
 class Rulebook:
     rules: list[Rule]
     profiles: dict[str, Profile]
+    genres: dict[str, Genre] = field(default_factory=dict)
+    comparables: dict[str, dict[str, list[float]]] = field(default_factory=dict)
 
     @property
     def default_profile(self) -> str:
@@ -97,7 +114,21 @@ def load_rulebook(path: str | Path | None = None) -> Rulebook:
         )
         for raw in data.get("rules", [])
     ]
-    return Rulebook(rules=rules, profiles=profiles)
+    genres = {
+        key: Genre(
+            key=key,
+            name=raw.get("name", key),
+            principle=" ".join(str(raw.get("principle", "")).split()),
+            signals={k: [float(v[0]), float(v[1])]
+                     for k, v in (raw.get("signals", {}) or {}).items()},
+        )
+        for key, raw in (data.get("genres") or {}).items()
+    }
+    comparables = {
+        profile: {k: [float(v[0]), float(v[1])] for k, v in bands.items()}
+        for profile, bands in (data.get("comparables") or {}).items()
+    }
+    return Rulebook(rules=rules, profiles=profiles, genres=genres, comparables=comparables)
 
 
 def load_rules(path: str | Path | None = None, profile: str | None = None) -> list[Rule]:

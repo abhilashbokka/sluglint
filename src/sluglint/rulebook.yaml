@@ -1360,3 +1360,184 @@ rules:
         dialogue is the default and needs no marking. What needs marking here
         is the reverse: a switch into a language the audience is not assumed
         to follow, and any dialogue the film intends to subtitle on screen.
+
+  # ---- profile: production load (added with the metrics layer) ---------
+  - id: C028
+    name: Company moves relative to scene count
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: company_moves
+    params: {max_ratio: 0.85, min_scenes: 25}
+    principle: >
+      A company move is a change of location between consecutive scenes, and
+      it is the single biggest lever on a shooting day. When almost every
+      scene sits at a different place from the one before it, the schedule is
+      being written by scene order rather than by geography.
+    source: ProdConv
+
+  - id: C029
+    name: Set used for a single fraction of a page
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: single_use_location
+    params: {max_pages: 0.5, min_locations: 12}
+    principle: >
+      A location that carries less than half a page still costs a scout, a
+      permit, a move, and a lighting setup. Several of them together is
+      usually a sequence that could play in one place already in the script.
+    source: ProdConv
+
+  - id: C030
+    name: Character carried by a single long scene
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: one_scene_wonder
+    params: {min_lines: 12}
+    principle: >
+      A speaker with a substantial part confined to one scene is a full
+      casting process, a fitting, and a day for a role the audience meets
+      once. Worth knowing before the part is offered.
+    source: ProdConv
+
+  - id: F047
+    name: Scene runs under an eighth of a page
+    tier: 1
+    category: production
+    severity: suggestion
+    detect: sliver_scene
+    params: {min_eighths: 1, min_scenes: 20}
+    principle: >
+      A scene shorter than one eighth of a page still takes a slugline, a
+      scene number, a strip on the board, and a setup. Some are deliberate
+      cutaways; a run of them usually wants to be one scene with a montage
+      header.
+    source: ProdConv
+
+  - id: F048
+    name: Dialogue with no action anywhere in the scene
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: unstaged_scene
+    params: {min_lines: 8}
+    principle: >
+      A scene of pure speech with no action line gives the director no
+      staging, the actors no business, and the reader no picture. Even one
+      line of what the room is doing anchors it.
+    source: Trottier; McKee
+
+# =====================================================================
+# GENRE SIGNATURES
+#
+# Not a verdict. Every entry below is a set of bands over measurements the
+# metrics layer takes from the page: what share of scenes are night, how much
+# of the document is dialogue, how fast the scenes turn over. A script is
+# scored by how many bands it sits inside, and the per-signal evidence is
+# always shown, so a reader can disagree with any single band and see exactly
+# what it changed.
+#
+# Genre is an observable category rather than a judgment of quality, which is
+# why this is allowed to exist here at all. Nothing below says a script is
+# good, or that it should be one genre rather than another.
+#
+# PROVENANCE, stated plainly: these bands are starting heuristics drawn from
+# how each form is conventionally taught and from what the shape of the page
+# implies about shooting it. They are NOT measured from a labelled corpus,
+# because no freely licensed corpus of that kind exists yet. Treat a match as
+# a prompt to look, never as a fact. They are data precisely so they can be
+# replaced by measured values the day a corpus does exist.
+# =====================================================================
+
+genres:
+  comedy:
+    name: Comedy
+    signals:
+      short_exchange_ratio: [0.55, 1.0]
+      dialogue_ratio: [0.5, 1.0]
+      night_ratio: [0.0, 0.4]
+      avg_scene_pages: [0.0, 1.4]
+      dread_word_density: [0.0, 0.6]
+    principle: >
+      Comedy lives on the turn between two lines, so its speeches are short
+      and its scenes end early. It is written daytime and interior far more
+      often than not, because the joke needs the room lit.
+
+  drama:
+    name: Drama
+    signals:
+      dialogue_ratio: [0.45, 1.0]
+      avg_scene_pages: [0.8, 3.0]
+      cast_per_page: [0.0, 0.45]
+      action_word_density: [0.0, 0.8]
+      short_exchange_ratio: [0.0, 0.7]
+    principle: >
+      Drama gives a scene room to turn, so scenes run longer and the cast
+      stays small enough that each speaker is developed rather than used.
+
+  action:
+    name: Action or thriller
+    signals:
+      action_word_density: [0.8, 100.0]
+      dialogue_ratio: [0.0, 0.55]
+      exterior_ratio: [0.25, 1.0]
+      scenes_per_page: [0.6, 100.0]
+      locations_per_page: [0.2, 100.0]
+    principle: >
+      Action is carried in description rather than speech, moves between more
+      places, and turns scenes over faster than a script that talks.
+
+  horror:
+    name: Horror
+    signals:
+      night_ratio: [0.4, 1.0]
+      dread_word_density: [0.8, 100.0]
+      dialogue_ratio: [0.0, 0.55]
+      cast_per_page: [0.0, 0.4]
+      avg_scene_pages: [0.0, 2.0]
+    principle: >
+      Horror is written at night with a small cast in few places, and it
+      spends its description on what cannot be seen clearly.
+
+  romance:
+    name: Romance
+    signals:
+      intimacy_word_density: [0.5, 100.0]
+      dialogue_ratio: [0.5, 1.0]
+      cast_per_page: [0.0, 0.5]
+      action_word_density: [0.0, 0.5]
+      night_ratio: [0.0, 0.5]
+    principle: >
+      Romance keeps two people in the frame and lets them talk, so its
+      description carries touch and reaction rather than event.
+
+# Bands a script is measured against for its declared profile. Same caveat as
+# above: conventional teaching, not a measured distribution. Page bands are the
+# most defensible of these because they are enforced by readers in practice.
+comparables:
+  us-spec-feature:
+    pages: [90, 120]
+    scene_count: [40, 130]
+    speaking_cast: [8, 35]
+    location_count: [15, 60]
+    night_share: [0.0, 0.45]
+  tv-pilot:
+    pages: [28, 68]
+    scene_count: [20, 70]
+    speaking_cast: [6, 25]
+    location_count: [6, 30]
+    night_share: [0.0, 0.5]
+  shooting-script:
+    pages: [90, 130]
+    scene_count: [40, 160]
+    speaking_cast: [8, 45]
+    location_count: [15, 70]
+    night_share: [0.0, 0.5]
+  indian-regional:
+    pages: [110, 165]
+    scene_count: [60, 200]
+    speaking_cast: [15, 60]
+    location_count: [25, 90]
+    night_share: [0.0, 0.5]

@@ -137,8 +137,8 @@ def test_parser_is_forgiving_about_garbage():
 
 # ============================================================ rulebook
 
-def test_rulebook_is_101_rules():
-    assert len(BOOK.rules) == 101
+def test_rulebook_rule_count():
+    assert len(BOOK.rules) == 106
 
 
 def test_rule_ids_and_detect_keys_are_unique():
@@ -295,6 +295,14 @@ SNIPPETS = [
     ("C025", ("INT. A - DAY\n\nANA (30s), BEN (30s), CIA (30s), DOV (30s).\n\n"
               + "ANA\nline.\n\n" * 20
               + "BEN\nline.\n\nCIA\nline.\n\nDOV\nline.\n\n" * 7), {}),
+    # --- tier 1/2: production load
+    ("F047", "".join(f"INT. SET{c} - DAY\n\nx\n\n" for c in "ABCD"), {"min_scenes": 3}),
+    ("F048", "INT. BAR - DAY\n\nJOHN\nOne.\nTwo.\nThree.\n", {"min_lines": 2}),
+    ("C028", "".join(f"INT. SET{c} - DAY\n\nx\n\n" for c in "ABCD"), {"min_scenes": 3}),
+    ("C029", ("INT. HALL - DAY\n\n" + "line\n" * 40
+              + "\nINT. A - DAY\n\nx\n\nINT. B - DAY\n\ny\n"), {"min_locations": 3}),
+    ("C030", "INT. BAR - DAY\n\nSTRANGER (40s) sits.\n\nSTRANGER\nOne.\nTwo.\n",
+     {"min_lines": 2}),
 ]
 
 
@@ -647,3 +655,112 @@ def test_two_places_sharing_a_long_suffix_are_not_one_set():
 def test_one_place_spelled_two_ways_is_still_location_drift():
     script = parse_text("INT. FOOD TRUCK - DAY\n\nx\n\nINT. FOODTRUCK - NIGHT\n\ny\n")
     assert [f for f in lint(script) if f.rule_id == "C005"]
+
+
+# ============================================================ metrics
+# The stats layer reports numbers unconditionally. It must never carry a
+# verdict, and every number has to be arithmetic a reader can redo by hand.
+
+def test_metrics_count_what_is_on_the_page():
+    from sluglint.metrics import analyse
+    m = analyse(parse_file(V1))
+    assert m.scene_count == 7
+    assert m.speaking_cast == len(parse_file(V1).character_registry())
+    assert m.pages > 0 and m.runtime_minutes == m.pages
+    assert sum(c.dialogue_lines for c in m.characters) == m.dialogue_lines
+
+
+def test_character_presence_and_share_are_consistent():
+    from sluglint.metrics import analyse
+    m = analyse(parse_file(V1))
+    assert m.characters == sorted(m.characters, key=lambda c: (-c.dialogue_lines, c.name))
+    assert abs(sum(c.speaking_share for c in m.characters) - 1.0) < 0.01
+    for c in m.characters:
+        assert c.first_scene <= c.last_scene
+        assert c.shoot_days_hint == len(c.scenes)
+
+
+def test_eighths_render_the_way_a_strip_board_does():
+    from sluglint.metrics import _fmt_eighths
+    assert _fmt_eighths(0.625) == "5/8"
+    assert _fmt_eighths(2.25) == "2 2/8"
+    assert _fmt_eighths(3.0) == "3"
+
+
+def test_company_moves_count_location_changes_in_scene_order():
+    from sluglint.metrics import analyse
+    same = analyse(parse_text("INT. BAR - DAY\n\nx\n\nINT. BAR - NIGHT\n\ny\n"))
+    moved = analyse(parse_text("INT. BAR - DAY\n\nx\n\nINT. HALL - DAY\n\ny\n"))
+    assert same.company_moves == 0 and moved.company_moves == 1
+
+
+def test_day_and_night_pages_split_the_document():
+    from sluglint.metrics import analyse
+    m = analyse(parse_text("INT. BAR - DAY\n\nx\n\nINT. HALL - NIGHT\n\ny\nz\n"))
+    assert m.day_pages > 0 and m.night_pages > 0
+    assert 0.0 < m.night_share < 1.0
+
+
+def test_genre_scoring_is_a_count_of_bands_not_a_verdict():
+    from sluglint.metrics import analyse, score_genres
+    m = analyse(parse_file(V1))
+    matches = score_genres(m.signals, BOOK.genres)
+    assert matches and all(0 <= g.matched <= g.total for g in matches)
+    assert matches == sorted(matches, key=lambda g: (-g.score, -g.matched, g.name))
+    # Every band that decided the score has to be inspectable.
+    for g in matches:
+        assert len(g.checks) == g.total
+        assert all(c.verdict in {"within", "below", "above"} for c in g.checks)
+
+
+def test_comparables_report_which_side_of_the_band_a_number_falls():
+    from sluglint.metrics import analyse, compare
+    m = analyse(parse_file(V1))
+    checks = {c.signal: c for c in compare(m, BOOK.comparables["us-spec-feature"])}
+    assert "pages" in checks
+    # The fixture is a few pages long, far under a feature band.
+    assert checks["pages"].verdict == "below" and not checks["pages"].inside
+
+
+def test_stats_json_is_machine_readable():
+    import json
+
+    from sluglint.metrics import analyse, compare, score_genres
+    from sluglint.report import stats_to_json
+    m = analyse(parse_file(V1))
+    payload = json.loads(stats_to_json(m, score_genres(m.signals, BOOK.genres),
+                                       compare(m, BOOK.comparables["us-spec-feature"]),
+                                       profile="us-spec-feature"))
+    assert payload["profile"] == "us-spec-feature"
+    assert payload["metrics"]["scene_count"] == 7
+    assert {"key", "matched", "total", "checks"} <= set(payload["genres"][0])
+
+
+def test_stats_command_prints_no_findings():
+    from sluglint.cli import main
+    assert main(["stats", str(V1)]) == 0
+
+
+def test_dashboard_is_self_contained_and_leaks_no_script_text():
+    """The dashboard is the artifact most likely to get shared."""
+    from sluglint import dashboard
+    from sluglint.metrics import analyse, compare, score_genres
+    script = parse_file(V1)
+    m = analyse(script)
+    page = dashboard.render(m, score_genres(m.signals, BOOK.genres),
+                            compare(m, BOOK.comparables["us-spec-feature"]),
+                            profile="us-spec-feature")
+    assert "<script" not in page.lower()          # no JS, so nothing to fetch
+    assert "http://" not in page and "https://" not in page
+    assert "prefers-color-scheme" in page and 'data-theme="dark"' in page
+    # Dialogue must never reach the page; names and counts are the whole payload.
+    spoken = {el.text for el in script.elements if el.type == ElementType.DIALOGUE}
+    assert not [line for line in spoken if len(line) > 12 and line in page]
+    assert "PRASHANT" not in page  # not in this fixture; guards the assertion above
+
+
+def test_dashboard_survives_a_script_with_nothing_in_it():
+    from sluglint import dashboard
+    from sluglint.metrics import analyse
+    page = dashboard.render(analyse(parse_text("")), [], [], profile="us-spec-feature")
+    assert "Untitled script" in page

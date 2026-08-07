@@ -11,13 +11,18 @@ most useful thing any entry does is record what would falsify it.
 
 | # | Idea | Claim in one line | Evidence | Blocked on |
 |---|---|---|---|---|
-| [01](01-thresholds-vs-practice.md) | Prescriptive thresholds against practice | Quantified craft rules sit far from the distribution of produced work, measurably | **Strong**, one worked case | Corpus size |
-| [02](02-fixture-corpus-gap.md) | The fixture-corpus gap | Fixture suites miss a systematic class of rule defect that only a real corpus surfaces | **Strong**, 8 of 8 cases | Nothing |
+| [01](01-thresholds-vs-practice.md) | Prescriptive thresholds against practice | Quantified craft rules sit far from the distribution of produced work, measurably | **Measured**, 11 of 54 rules, F004 replicated | A harness for the other 43 |
+| [02](02-fixture-corpus-gap.md) | The fixture-corpus gap | Fixture suites miss a systematic class of rule defect that only a real corpus surfaces | **Strong**, 9 of 9 cases | Nothing |
 | [03](03-ingestion-confidence.md) | Ingestion confidence as a gate | A third of real PDFs fail to parse well enough to evaluate, and nobody reports it | **Medium** | Nothing |
 | [04](04-dismissal-as-label.md) | Dismissal as label | A dismiss control produces the labelled data a precision measurement needs, for free | **None yet** | Building the UI |
 | [05](05-federated-statistics.md) | Federated corpus statistics | Distributional claims about unshareable corpora are reproducible without the corpus | **Partial** | Contributors |
 | [06](06-page-runtime-cross-language.md) | Page-to-runtime across languages | The page-a-minute convention is an English typesetting result, and is testable | **None yet** | Data collection |
 | [07](07-verifiable-only-analysis.md) | Verifiable-only analysis | A scope boundary drawn at "can you point at it on the page" is implementable and defensible | Artifact | Nothing |
+
+Two working documents sit alongside the ideas:
+[corpus-options.md](corpus-options.md) (which public corpus can carry the work,
+and why the better-licensed one loses) and
+[threshold-results.md](threshold-results.md) (the first pass of 01's table).
 
 Measured facts, with provenance and how to reproduce them, live in
 [evidence.md](evidence.md). Cite that file rather than restating numbers, so
@@ -32,12 +37,10 @@ number and without tier 3, which is what makes them writable now. They are
 different claims for different audiences and should stay two papers. Merging
 them would produce something that argues two things and establishes neither.
 
-**01 needs one thing it does not have: n.** Nineteen produced English
-screenplays is enough for one worked example and too few for a percentile claim
-at the tail, which is exactly where the interesting thresholds sit. Four of the
-seventeen English documents are flagged suspect, so the usable set is smaller
-still. Fifty documents would make the 95th and 99th percentiles reportable. This
-gates the paper harder than tier 3 does.
+**01 no longer needs n.** ScriptBase closed it: 214 gated films and 189,078
+action paragraphs, with genre and year per film. F004 replicated to within half
+a percentage point of the original 19-PDF measurement. What 01 needs now is a
+harness for the remaining 43 thresholds and a profile split.
 
 **Sharpen 01's framing.** The finding is not that a book is wrong. Craft
 teaching states an ideal a writer should aim at, and a linter needs a decision
@@ -53,12 +56,19 @@ mechanism that puts a shooting script online. If the scripts held up as
 exemplary are the ones violating the taught threshold, the threshold is not
 describing good practice.
 
-**367 findings per 100 pages is a finding.** It stands without any labelling,
+**249 findings per 100 pages is a finding.** It stands without any labelling,
 because no screenplay contains that density of genuine defects. The better
 statistic underneath it is instances per distinct issue: 209 findings on
 Pellichoopulu are 41 unique issues, a 5.1x compression, and that ratio is a
 label-free precision proxy that can be computed over the whole corpus today.
 Proposing it as a metric is a small contribution inside 02.
+
+**A ninth defect landed after the docs were written, and it is the best one.**
+Page counts were a third low for the life of the project. It flipped three of
+six threshold verdicts across successive passes of 01's table, and nothing in
+the output distinguished a broken page counter from a claim about screenwriting.
+That is a seventh class in 02 and arguably its sharpest example, because the
+first two passes produced publishable-looking tables that were wrong.
 
 **Do not write about the three-tier architecture yet.** A quarter of the
 rulebook has never touched real input. Run tier 3 on five documents with

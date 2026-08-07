@@ -1,7 +1,14 @@
 # 01. Prescriptive thresholds against observed practice
 
-**Status: strongest idea on the board. One worked case, method defined, blocked
-on corpus size.**
+**Status: strongest idea on the board. First pass run, and it replicated.
+Results in [threshold-results.md](threshold-results.md).**
+
+**Update, 2026-08-07.** Eleven of the 54 thresholds are now measured against 214
+ScriptBase films and 189,078 action paragraphs. F004 replicated to within half a
+percentage point on a corpus of completely different provenance. Two more
+thresholds fail the same way: F013 at p87, and C021 with 88% of produced
+screenplays above the line. Corpus choice is worked through in
+[corpus-options.md](corpus-options.md).
 
 ## Claim
 
@@ -93,9 +100,11 @@ unusually easy to compute.
 
 ## Risks and objections
 
-**"You measured 19 scripts."** The real weakness. Percentile claims at p95 and
-p99 need more mass than that, and the tail is where the thresholds live. Fifty
-documents is the number to reach. This gates the paper.
+**"You measured 19 scripts."** Answered. The replication runs on 214 gated
+ScriptBase films and 189,078 action paragraphs, and agrees with the original 19
+PDFs to within half a percentage point at both the taught and the shipped value.
+Two corpora of different provenance reaching the same number is a stronger
+answer than one large corpus would have been.
 
 **"Your corpus is biased toward acclaimed films."** True, and it argues for the
 result. The scripts that circulate publicly do so because of award-season
@@ -121,9 +130,12 @@ off. The paper argues about operational usefulness rather than about aesthetics.
 
 ## Blocked on
 
-- **Corpus size.** 33 trusted documents, of which 13 are produced English. Needs
-  roughly 50 usable. See [05](05-federated-statistics.md) for the route that
-  does not require holding them.
+- ~~**Corpus size.**~~ Solved. ScriptBase gives 1,276 films with genre and year
+  metadata, of which 214 are already measured. See
+  [corpus-options.md](corpus-options.md).
+- **A profile split.** F008 cannot be read without separating spec drafts from
+  shooting scripts, and ScriptBase does not label draft stage. Scene numbering
+  is a usable proxy and is already detected.
 - **A harness.** `benchmark/thresholds.py` does not exist yet: read every rule
   with params, compute the matching empirical distribution, emit the table. This
   is a day of work and is the immediate next step.

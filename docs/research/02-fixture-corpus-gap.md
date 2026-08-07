@@ -18,8 +18,8 @@ positive.
 
 ## Evidence
 
-208 fixture tests passing, ruff clean, pylint 10.00. Pointing the same engine at
-49 real screenplays surfaced **eight defects, none of which any fixture caught**.
+213 fixture tests passing, ruff clean, pylint 10.00. Pointing the same engine at
+53 real screenplays surfaced **nine defects, none of which any fixture caught**.
 Full account in [../corpus-sweep.md](../corpus-sweep.md).
 
 | Rule | Before | After | Class |
@@ -32,6 +32,7 @@ Full account in [../corpus-sweep.md](../corpus-sweep.md).
 | F004 | 2,043 | 635 | threshold inherited from authority |
 | F011 | 424 | 240 | document-scale habit per occurrence |
 | ingest | n/a | 2 flagged | no plausibility ceiling |
+| pages | a third low | exact | harness measurement error |
 
 Corpus total moved 18,421 to 11,265, a 39% reduction, every removal confirmed
 wrong by reading.
@@ -50,8 +51,15 @@ wrong by reading.
 5. **Threshold inherited from authority.** See [01](01-thresholds-vs-practice.md).
 6. **Missing plausibility bound.** A floor with no ceiling; a document at 6.2
    scenes per page emitting hundreds of findings rather than one.
+7. **A measurement error in the harness reads as a finding about the world.**
+   Page counts were a third low for the life of the project, because the parser
+   drops blank lines and the estimator divided what was left by 55 lines per
+   page. Nothing in the output distinguishes this from a claim about
+   screenplays. It flipped three of six threshold verdicts in
+   [threshold-results.md](threshold-results.md) across successive passes, and
+   the only reason it was caught is that the numbers looked implausible.
 
-Classes 2 and 6 are the ones that fixtures structurally cannot catch. A fixture
+Classes 2, 6, and 7 are the ones that fixtures structurally cannot catch. A fixture
 is a small document. Class 2 needs a large one to become visible at all, and
 class 6 needs a broken one.
 
@@ -60,14 +68,14 @@ class 6 needs a broken one.
 This is the part worth emphasising, because it sidesteps the precision problem
 entirely.
 
-- **367 findings per 100 pages** across 33 trusted documents. No screenplay
+- **249 findings per 100 pages** across 36 trusted documents. No screenplay
   contains that density of genuine defects, so the tool over-fires regardless of
   what a labelling pass would show.
-- **58% of output is the lowest severity tier** (3,796 suggestions against 247
+- **56% of output is the lowest severity tier** (4,159 suggestions against 283
   errors).
-- **The top twelve rules produce 61% of all findings.**
+- **The top twelve rules produce 60% of all findings.**
 - **Instances per unique issue.** Pellichoopulu: 209 findings collapse to 41
-  distinct rules, a 5.1x compression. F062: 264 findings, 5 documents, 53 per
+  distinct rules, a 5.1x compression. F062: 272 findings, 6 documents, 45 per
   document.
 
 That last one is a **metric proposal**. Instances-per-unique-issue is a
@@ -80,7 +88,7 @@ document or on all of them.
 
 ## The experiment still worth running
 
-**Ablation.** Take the eight fixed rules, revert each in turn, and confirm that
+**Ablation.** Take the nine fixed rules, revert each in turn, and confirm that
 the fixture suite still passes with the defect reinstated. That converts "no
 fixture caught these" from a recollection into a measurement, and it is a couple
 of hours of work. Do this before writing, because it is the sentence a reviewer

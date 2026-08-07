@@ -18,15 +18,18 @@ finding removed was confirmed wrong by reading it.
 down here so the numbers are checkable by someone who assembles a comparable
 set, which is the most that can be offered without a licence.
 
-56 files, of which 49 were read and 7 refused.
+60 files, of which 53 were read and 7 refused.
+
+Numbers on this page were regenerated after the page-count fix described at
+the end. Everything per-page moved by about a third.
 
 | Group | Files | Read | Suspect | Refused | Pages | Findings |
 |---|---:|---:|---:|---:|---:|---:|
-| Produced, English | 17 | 13 | 4 | 0 | 1,593 | 6,237 |
-| Produced, Telugu | 7 | 3 | 3 | 1 | 583 | 1,609 |
-| Produced, Hindi | 4 | 1 | 2 | 1 | 437 | 1,095 |
-| Produced, Kannada | 1 | 0 | 1 | 0 | 116 | 1,209 |
-| Unproduced drafts, privately held | 27 | 16 | 6 | 5 | 205 | 1,115 |
+| Produced, English | 17 | 13 | 4 | 0 | 2,315 | 6,293 |
+| Produced, Telugu | 11 | 6 | 4 | 1 | 1,481 | 2,918 |
+| Produced, Hindi | 4 | 1 | 2 | 1 | 651 | 1,108 |
+| Produced, Kannada | 1 | 0 | 1 | 0 | 106 | 1,209 |
+| Unproduced drafts, privately held | 27 | 16 | 6 | 5 | 331 | 1,143 |
 
 **Produced** means the film was released theatrically or on a streaming service,
 determined by the title rather than by any property of the document. The English set
@@ -46,14 +49,14 @@ The unproduced set is not itemised. Those are working drafts held in confidence,
 and naming them in a public repository would publish something about their
 authors that they did not agree to.
 
-**Profiles:** 43 documents linted as `us-spec-feature`, 13 as
+**Profiles:** 43 documents linted as `us-spec-feature`, 17 as
 `indian-regional`, assigned by language group rather than by inspection.
 
 ### Three states, and why the middle one matters
 
-- **read** (33): the geometry reader recovered the document and its own
+- **read** (36): the geometry reader recovered the document and its own
   confidence checks passed.
-- **suspect** (16): recovered, but a confidence check failed. Findings from
+- **suspect** (17): recovered, but a confidence check failed. Findings from
   these are reported and excluded from any rate.
 - **refused** (7): the reader declined. Broken character map, no recoverable
   text layer, or a document that is not a screenplay.
@@ -135,42 +138,76 @@ called a heading, against the PDF's page count. The number that matters is what
 the parser finally built, against estimated pages, and the two diverge exactly
 when something has gone wrong. Moved to `ingest/__init__.py`, above both.
 
+### 9. Every page number was a third low
+
+Found after the eight above, while measuring thresholds against ScriptBase.
+The parser drops blank lines, and `estimated_pages` divided what was left by 55
+as though they were still there. A formatted page holds 55 lines but only about
+36.5 carry text.
+
+Measured against seven produced screenplays whose real page count is known:
+
+| Script | True | Reported | Ratio |
+|---|---:|---:|---:|
+| Parasite | 144 | 99.6 | 0.69 |
+| Her | 106 | 76.6 | 0.72 |
+| 2001: A Space Odyssey | 65 | 47.8 | 0.74 |
+| The Matrix | 133 | 88.3 | 0.66 |
+| Whiplash | 114 | 71.3 | 0.63 |
+| The Shining | 148 | 91.8 | 0.62 |
+| Inside Out | 130 | 82.1 | 0.63 |
+
+A PDF states its own page count and it was never being used. `printed_lines()`
+now wraps each element to the column it prints in, and `already_wrapped()`
+decides per document whether the source broke its own lines, because
+re-wrapping an already-wrapped crawl at a narrower column counts every second
+line twice.
+
+This was user-facing: F008 bands a feature at 85 to 125 pages, so a 130-page
+draft was told it was 82 pages and too short. Every per-page rule, the runtime
+estimate, the eighths, and the dashboard carried the same error, and so did the
+findings-per-100-pages figure on this page before it was regenerated.
+
+**Nothing tested the page count**, which is how it survived 208 passing tests.
+Five tests now do.
+
 ---
 
 ## Where the numbers landed
 
 Pass history: **18,421 to 13,894 to 12,672 to 11,265.**
 
-On the 33 trusted documents:
+On the 36 trusted documents:
 
 | | |
 |---|---:|
-| Pages | 1,771 |
-| Findings | 6,504 |
-| Findings per 100 pages | 367 |
-| Errors | 247 |
-| Warnings | 2,461 |
-| Suggestions | 3,796 |
-| Rules that fired | 92 of 150 |
+| Pages | 2,995 |
+| Findings | 7,445 |
+| Findings per 100 pages | 249 |
+| Errors | 283 |
+| Warnings | 3,003 |
+| Suggestions | 4,159 |
+| Rules that fired | 93 of 150 |
 
-**367 findings per 100 pages is itself a result.** It says the tool over-fires,
+**249 findings per 100 pages is itself a result.** It says the tool over-fires,
 independent of what a labelling pass would show, because no screenplay contains
 that density of genuine defects. The severity mix says the same thing from
-another angle: 58% of output is the lowest tier.
+another angle: 56% of output is the lowest tier.
 
-The top twelve rules produce 61% of all findings. Concentration is the specific
+The top twelve rules produce 60% of all findings. Concentration is the specific
 shape of the problem.
 
 ### Rules still reporting a habit per occurrence
 
 | Rule | Findings | Documents | Per document |
 |---|---:|---:|---:|
-| F062 scene heading ends in punctuation | 264 | 5 | 53 |
-| F021 non-standard character extension | 303 | 17 | 18 |
-| F014 non-standard heading separator | 255 | 16 | 16 |
+| F062 scene heading ends in punctuation | 272 | 6 | 45 |
+| F025 pagination artifacts | 124 | 5 | 25 |
+| C005 location name inconsistency | 532 | 23 | 23 |
+| F016 unbroken dialogue block | 690 | 33 | 21 |
 
 A writer who ends every slugline with a period made one decision and is told
-about it 53 times.
+about it 45 times.
 
 ---
 

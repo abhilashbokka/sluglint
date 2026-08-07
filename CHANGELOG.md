@@ -62,6 +62,29 @@ the rule and its test share one definition, and recall returned to 97%.
 Writers who want the strict convention get it from config:
 `params: {F004: {max_lines: 4}}`.
 
+### Page counts were a third low
+
+`estimated_pages` divided non-blank elements by 55 lines per page, but the
+parser drops blank lines and a formatted page carries only about 36.5 lines of
+text. Measured against seven produced screenplays with known page counts, the
+median ratio was 0.66: Parasite reported 99.6 against a true 144, The Shining
+91.8 against 148.
+
+- A PDF states its own page count. `parse_pdf` now hands it to the `Script` and
+  nothing derived overrides it.
+- `printed_lines()` wraps each element to the column it prints in, because a
+  Fountain source holds a whole paragraph on one line while a PDF row is
+  already one line.
+- `already_wrapped()` decides per document whether the source broke its own
+  lines. A crawled text dump wraps action near 67 characters, so re-wrapping it
+  at the standard 60 counted every second line twice.
+- Scene pages rescale to the real total, so the parts still sum to the whole.
+
+User-facing: F008 bands a feature at 85 to 125 pages, so a 130-page draft was
+being told it was 82 pages and too short. Every per-page rule, the runtime
+estimate, the eighths, and the dashboard carried the same error. Nothing tested
+the page count, which is how it survived; five tests now do.
+
 ### Ingest
 
 - `ingest/__init__.py` gained `implausible_density()`. A document running above
@@ -99,5 +122,7 @@ Writers who want the strict convention get it from config:
   across the 49-document sweep because it ran with the LLM tier off.
 - **Precision is unmeasured.** Recall is 97% on injected defects. No labelled
   set exists.
+- Findings per 100 pages on the trusted corpus is **249**, and an earlier
+  figure of 367 was an artifact of the page bug above.
 - F026, F060, and F061 never fire through the PDF path, because ingest rebuilds
   clean Fountain. They are reachable only from Fountain input.

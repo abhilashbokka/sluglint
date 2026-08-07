@@ -222,6 +222,46 @@ thirty-eight rules does not scan them as closely as one asked to scan six.
 The practical consequence is that the free tier cannot buy its way out of a
 quota by chunking wider, and the honest default stays at 6.
 
+## Twelve rules cannot fire, and it is the window's fault
+
+Of the 38 tier-3 rules, 5 fired on Parasite. Classifying them by what they ask
+about explains which 5:
+
+| Scale | Rules | Fired |
+|---|---:|---:|
+| Line scale, answerable inside one scene | 26 | 5 |
+| **Document scale, asks whether the script returns to something** | **12** | **0** |
+
+Every rule that fired is line scale: passive voice, hedging verbs, novelistic
+prose, unfilmable sensory description, unfilmable interiority. Every
+document-scale rule was silent, and a six-scene window is why. A judge shown
+scenes 12 through 17 cannot answer "is this prop ever paid off", because the
+payoff is not in front of it. The rule is not failing; it is unanswerable as
+asked.
+
+This is the strongest argument for a second request shape rather than a better
+prompt. The 26 line-scale rules are a classification problem over a window and
+the current design suits them. The 12 document-scale rules need the whole
+document, or retrieval over it, and no amount of rubric tuning inside a window
+will reach them.
+
+## Why line-id evidence is not the obvious win
+
+An appealing fix for the fabricated quotes is to number every line and have the
+judge return an id instead of a quote, which makes a fabricated quote
+inexpressible. It would work, and it would be a mistake on its own.
+
+Right now a fabricated quote is **dropped and counted**: 20 of 21 rejections on
+Parasite. Forced to cite a real line, a judge that wants to report something
+will pick the nearest plausible line instead, and the filter has nothing left
+to check. A measurable failure becomes an invisible one, which is a bad trade
+for a project whose whole positioning is that a finding can be checked against
+the page.
+
+The version that is strictly better than either: **require the line id AND the
+quote, then check the quote against that line.** Fabrication fails the lookup,
+misattribution fails the comparison, and both stay countable.
+
 ## The measurement this unlocks
 
 `tier3_llm.FilterStats` counts what each hallucination filter caught. Every

@@ -14,13 +14,23 @@ POST is not worth an SDK.
 export ANTHROPIC_API_KEY=...
 python -m sluglint.cli lint script.pdf --llm
 
-# Anything OpenAI-compatible
+# Google Gemini, which has a free tier and a 1M context window
+export SLUGLINT_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+export SLUGLINT_LLM_API_KEY_FILE=~/.config/sluglint/gemini.key
+export SLUGLINT_MODEL=gemini-3.6-flash
+python -m sluglint.cli lint script.pdf --llm
+
+# Groq, fastest of the free tiers, small context so chunk smaller
 export SLUGLINT_LLM_BASE_URL=https://api.groq.com/openai/v1
-export SLUGLINT_LLM_API_KEY=...
+export SLUGLINT_LLM_API_KEY_FILE=~/.config/sluglint/groq.key
 export SLUGLINT_MODEL=llama-3.3-70b-versatile
 export SLUGLINT_LLM_RPM=30
 python -m sluglint.cli lint script.pdf --llm
 ```
+
+Gemini's compatibility layer **silently ignores parameters it does not
+support** rather than erroring, so confirm on a short script that the output is
+not being truncated before starting a long run.
 
 An explicit `SLUGLINT_LLM_BASE_URL` always wins. No key at all means tier 3
 reports itself skipped and tiers 1 and 2 still run, which is behaviour the
@@ -30,31 +40,83 @@ project has always had and is not allowed to lose.
 |---|---|---|
 | `SLUGLINT_LLM_BASE_URL` | unset | OpenAI-compatible endpoint. Unset means use Anthropic. |
 | `SLUGLINT_LLM_API_KEY` | falls back to `OPENAI_API_KEY` | Bearer token for that endpoint. |
+| `SLUGLINT_LLM_API_KEY_FILE` | unset | Path to a file whose first line is the key. Prefer this. |
 | `SLUGLINT_MODEL` | `claude-sonnet-5` | Model id. |
 | `SLUGLINT_LLM_RPM` | 0 (no pacing) | Requests per minute. Set it to the free tier's limit. |
 | `SLUGLINT_SCENES_PER_CALL` | 6 | Lower it for a provider with a small context cap. |
 | `SLUGLINT_MAX_TOKENS` | 8000 | Output cap per call. |
 | `SLUGLINT_LLM_TIMEOUT` | 180 | Seconds per request. |
 
+## Where to put the key
+
+Prefer a file. `export` writes the key into shell history and exposes it in
+`ps` output to every process on the machine, and a key pasted into a terminal
+has a way of ending up somewhere it was not meant to be.
+
+```bash
+mkdir -p ~/.config/sluglint && chmod 700 ~/.config/sluglint
+printf '%s\n' 'YOUR_KEY_HERE' > ~/.config/sluglint/gemini.key
+chmod 600 ~/.config/sluglint/gemini.key
+
+export SLUGLINT_LLM_API_KEY_FILE=~/.config/sluglint/gemini.key
+```
+
+Only the first line is read, so a comment underneath is harmless. A path that
+does not exist reports a missing key rather than crashing.
+
+Keep the file **outside the repository**. `.env` is gitignored, but a gitignore
+is one `git add -f` away from a public commit and this repository is public
+(hard rule 9). A path under `~/.config` cannot be committed by accident.
+
 ## Read this before pointing it at a corpus
 
-**Some free tiers train on the prompts you send them.** This project keeps
-`benchmark/corpus/` and `benchmark/local/` gitignored so no third-party
-screenplay is ever redistributed, and the reasoning is worked through in
-[public-domain-scripts.md](public-domain-scripts.md). Handing those same files
-to a provider that trains on them is redistribution by another route. It is a
-licence decision rather than a rate-limit one, and it is why
-`SLUGLINT_LLM_BASE_URL` has no default.
+**Some free tiers train on the prompts you send them.** Worth knowing, but
+worth keeping in proportion: the corpora this project measures are already
+public. ScriptBase is a public GitHub repository and the regional PDFs are
+published pages, so they are in every crawl already and sending them to a model
+is not redistribution in any meaningful sense. The gitignores on
+`benchmark/corpus/` and `benchmark/local/` are about what this repository
+commits, which is a different question. See
+[public-domain-scripts.md](public-domain-scripts.md).
 
-| Provider | Trains on free-tier prompts? | Safe for the private corpus |
+Where it would matter is a draft that is not public: a script a writer sends
+to the tool, which is the whole product. For that case the column below is the
+one to read, and it is why `SLUGLINT_LLM_BASE_URL` has no default.
+
+| Provider | Trains on free-tier prompts? | Can it see a writer's unpublished draft? |
 |---|---|---|
 | [Groq](https://console.groq.com/docs/rate-limits) | No | Yes |
 | [Cerebras](https://inference-docs.cerebras.ai/support/pricing) | No | Yes |
-| [Google AI Studio](https://ai.google.dev/gemini-api/docs/pricing) | **Yes**, outside the UK, Switzerland, EEA and EU | Public-domain and `examples/` only |
-| [Mistral](https://docs.mistral.ai/deployment/laplateforme/tier/) | **Yes**, opting in is required to get the tier | Public-domain and `examples/` only |
+| [Anthropic](https://www.anthropic.com/legal/commercial-terms) | No | Yes |
+| [Google AI Studio](https://ai.google.dev/gemini-api/docs/pricing) | **Yes**, outside the UK, Switzerland, EEA and EU | Paid tier only |
+| [Mistral](https://docs.mistral.ai/deployment/laplateforme/tier/) | **Yes**, opting in is required to get the tier | No |
 | [OpenRouter](https://openrouter.ai/docs/api-reference/limits) | Per upstream model | Check the model |
 | [NVIDIA NIM](https://build.nvidia.com/) | Check current terms | Check |
-| [Anthropic](https://www.anthropic.com/legal/commercial-terms) | No | Yes |
+| [opencode](https://opencode.ai/data/deepseek/deepseek-v4-flash) | **Not stated on the model page**, which links a privacy policy without detailing training use | Unverified |
+
+For measuring this project's corpora, every row is fine. The column matters
+the day the tool takes a script from someone who has not published it, and it
+is cheaper to pick a provider now than to migrate later.
+
+## Paid, and cheap enough to change the decision
+
+Free tiers cost rate-limit juggling. Two paid options remove it for less than
+the price of a coffee, priced against this rulebook's measured 99,000 input
+tokens and roughly 18,000 output tokens per feature:
+
+| Model | Input / output per 1M | Per feature | Five features | All 1,082 ScriptBase films |
+|---|---|---:|---:|---:|
+| [DeepSeek V4 Flash](https://opencode.ai/data/deepseek/deepseek-v4-flash) | $0.14 / $0.28 | **$0.02** | $0.10 | about $20 |
+| Claude Sonnet 5 | $3.00 / $15.00 | $0.56 | $2.80 | about $600 |
+
+DeepSeek V4 Flash carries a **1M context window**, which removes the chunking
+constraint entirely: `SLUGLINT_SCENES_PER_CALL` could hold a whole feature in
+one call, and the rubric would then be paid for once per script rather than 22
+times. That is the single biggest cost lever available here.
+
+Its data policy is the open question. The model page states pricing and context
+but says nothing about training on prompts, so treat it as unverified until the
+privacy policy is read.
 
 ## What a run costs in requests
 
@@ -130,6 +192,8 @@ most likely to be stale.
 - Mistral tiers: <https://docs.mistral.ai/deployment/laplateforme/tier/>
 - OpenRouter limits: <https://openrouter.ai/docs/api-reference/limits>
 - NVIDIA NIM catalogue: <https://build.nvidia.com/>
+- Gemini OpenAI compatibility: <https://ai.google.dev/gemini-api/docs/openai>
+- DeepSeek V4 Flash on opencode: <https://opencode.ai/data/deepseek/deepseek-v4-flash>
 - Comparison writeups, useful but secondhand:
   <https://openrouter.ai/blog/tutorials/free-llm-apis-compared/> and
   <https://tokenmix.ai/blog/free-llm-apis-2026-every-provider-free-tier-tested>

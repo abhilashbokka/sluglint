@@ -287,15 +287,39 @@ def _post_with_retry(call, throttle: _Throttle) -> tuple[str, str]:
     return "", "rate limited"
 
 
+def _key_from_file(var: str) -> str:
+    """Read a key out of the file named by `<var>_FILE`.
+
+    A file beats an environment variable for a credential: `export` puts the
+    key in shell history and in `ps` output for every process on the machine,
+    and a key pasted into a terminal tends to end up somewhere it was not
+    meant to be. Only the first line is read, so a trailing newline or a
+    comment underneath is harmless. Failing to read it returns empty, and the
+    caller then reports a missing key rather than crashing.
+    """
+    path = os.environ.get(var + "_FILE", "").strip()
+    if not path:
+        return ""
+    try:
+        with open(os.path.expanduser(path), encoding="utf-8") as fh:
+            return fh.readline().strip()
+    except OSError:
+        return ""
+
+
 def _describe_provider() -> tuple[str, str, str]:
     """-> (provider, base_url, api_key). An explicit base URL always wins."""
     base = os.environ.get("SLUGLINT_LLM_BASE_URL", "").strip()
     if base:
         key = (os.environ.get("SLUGLINT_LLM_API_KEY")
-               or os.environ.get("OPENAI_API_KEY") or "")
+               or _key_from_file("SLUGLINT_LLM_API_KEY")
+               or os.environ.get("OPENAI_API_KEY")
+               or _key_from_file("OPENAI_API_KEY") or "")
         host = base.split("//")[-1].split("/")[0]
         return host, base, key
-    return "anthropic", "", os.environ.get("ANTHROPIC_API_KEY", "")
+    key = (os.environ.get("ANTHROPIC_API_KEY")
+           or _key_from_file("ANTHROPIC_API_KEY") or "")
+    return "anthropic", "", key
 
 
 def run(script: Script, rules: list[Rule], *, model: str = DEFAULT_MODEL,
@@ -315,7 +339,8 @@ def run(script: Script, rules: list[Rule], *, model: str = DEFAULT_MODEL,
     tally.provider, tally.model = provider, model
     if not api_key:
         want = "SLUGLINT_LLM_API_KEY" if base_url else "ANTHROPIC_API_KEY"
-        return [], [f"Tier 3 skipped ({len(rules)} LLM rules): set {want} to enable."]
+        return [], [f"Tier 3 skipped ({len(rules)} LLM rules): set {want}, "
+                    f"or {want}_FILE pointing at a file that holds it."]
 
     throttle = _Throttle(REQUESTS_PER_MINUTE)
     if base_url:

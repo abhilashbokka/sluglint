@@ -1221,6 +1221,35 @@ def test_a_dead_provider_leaves_tiers_1_and_2_usable(monkeypatch):
     assert any("no route to host" in n for n in notices)
 
 
+def test_a_key_can_live_in_a_file_instead_of_the_environment(tmp_path, monkeypatch):
+    """A credential in `export` is a credential in shell history and in `ps`."""
+    from sluglint.lint import tier3_llm
+    rules = [r for r in load_rulebook().rules if r.tier == 3][:1]
+    key_file = tmp_path / "gemini.key"
+    key_file.write_text("secret-token\n# the line below is ignored\nnot-this\n")
+
+    monkeypatch.delenv("SLUGLINT_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("SLUGLINT_LLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("SLUGLINT_LLM_API_KEY_FILE", str(key_file))
+
+    seen = {}
+
+    def capture(base_url, api_key, model, **kwargs):
+        seen["key"] = api_key
+        return json.dumps({"findings": []})
+
+    monkeypatch.setattr(tier3_llm, "_openai_compatible", capture)
+    _, notices = tier3_llm.run(parse_text("INT. BAR - DAY\n\nHe waits.\n"), rules)
+    assert seen["key"] == "secret-token"
+    assert not any("skipped" in n for n in notices)
+
+    # A path that is not there reports a missing key rather than crashing.
+    monkeypatch.setenv("SLUGLINT_LLM_API_KEY_FILE", str(tmp_path / "nope.key"))
+    findings, notices = tier3_llm.run(parse_text("INT. BAR - DAY\n\nHe waits.\n"), rules)
+    assert findings == [] and any("SLUGLINT_LLM_API_KEY" in n for n in notices)
+
+
 def test_the_throttle_paces_calls_to_a_requests_per_minute_budget():
     from sluglint.lint import tier3_llm
     assert tier3_llm._Throttle(0).gap == 0.0          # unset is a no-op

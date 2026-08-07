@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .models import Element, ElementType, Scene, Script
+from .models import Element, ElementType, Scene, Script, already_wrapped
 
 # Both orders of the combined prefix. A draft that writes 'EXT./INT. HILL HOUSE'
 # would otherwise match on 'EXT' alone and carry '/INT.' into the location name,
@@ -240,5 +240,11 @@ def parse_text(text: str, path: str = "<memory>") -> Script:
             current_scene.elements.append(el)
         prev_blank = False
 
-    return Script(path=path, title=title, scenes=scenes, elements=elements,
-                  total_lines=len(lines), raw_text=text, title_page=title_page)
+    script = Script(path=path, title=title, scenes=scenes, elements=elements,
+                    total_lines=len(lines), raw_text=text, title_page=title_page)
+    # One decision for the document, stamped everywhere it is needed. A scene
+    # cannot make this call for itself and the two answers must never differ.
+    script.prewrapped = already_wrapped(elements)
+    for scene in scenes:
+        scene.prewrapped = script.prewrapped
+    return script

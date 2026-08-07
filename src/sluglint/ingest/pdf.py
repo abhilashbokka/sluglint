@@ -386,4 +386,7 @@ def parse_pdf(path: str | Path) -> tuple[Script, list[str]]:
     # The PDF states its own page count. Nothing derived beats that, and the
     # derived estimate was a third low before this was wired through.
     script.page_count = result.pages
+    # And the scenes are stretched onto it, so a rule reading a scene's length
+    # and a dashboard drawing it never disagree.
+    script.reconcile_pages()
     return script, result.notes

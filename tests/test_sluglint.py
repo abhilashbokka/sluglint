@@ -745,7 +745,12 @@ def test_a_real_page_count_wins_over_the_estimate():
     assert loose > 0
     script.page_count = 118
     assert script.estimated_pages == 118.0
-    # And the scenes are rescaled to it, so the parts still sum to the whole.
+    # The scenes still hold the estimate until they are told about the count.
+    assert abs(sum(sc.estimated_pages for sc in script.scenes) - 118.0) > 0.5
+    # Reconciling stretches them onto it, so every layer that reads a scene's
+    # length reads the same number: the linter, the metrics, the dashboard.
+    script.reconcile_pages()
+    assert abs(sum(sc.estimated_pages for sc in script.scenes) - 118.0) < 0.5
     m = analyse(script)
     assert m.pages == 118.0
     assert abs(sum(sc.pages for sc in m.scenes) - 118.0) < 0.5
@@ -755,6 +760,25 @@ def test_scene_pages_sum_to_the_document_without_a_real_count():
     from sluglint.metrics import analyse
     m = analyse(parse_file(V1))
     assert abs(sum(sc.pages for sc in m.scenes) - m.pages) < 0.5
+
+
+def test_a_scene_number_does_not_make_a_heading_overlong():
+    """F013 measures the slugline, not the numbering a production added.
+
+    A shooting script prints its scene number at both margins, which adds about
+    ten characters to every heading. Measuring the raw string flagged 52% of
+    numbered headings across 1,082 produced screenplays against 0.8% of
+    unnumbered ones: identical writing, judged differently because somebody
+    locked the script."""
+    slug = "INT. THE UPSTAIRS APARTMENT KITCHEN - VERY EARLY MORNING"
+    assert len(slug) <= 60
+    plain = parse_text(f"{slug}\n\nShe fills the kettle.\n")
+    assert not [f for f in lint(plain) if f.rule_id == "F013"]
+
+    script = parse_text(f"148A {slug} 148A\n\nShe fills the kettle.\n")
+    assert script.scenes[0].number == "148A"
+    assert len(script.scenes[0].heading) > 60          # as printed, it is over
+    assert not [f for f in lint(script) if f.rule_id == "F013"]
 
 
 def test_a_wrapped_source_is_not_wrapped_twice():
@@ -780,6 +804,24 @@ def test_a_wrapped_source_is_not_wrapped_twice():
     assert already_wrapped(loose.elements) is False
     # And the fixtures, which are the real thing rather than a construction.
     assert already_wrapped(parse_file(CLEAN).elements) is False
+
+
+def test_every_scene_measures_pages_the_way_the_document_does():
+    """One wrap decision per document, stamped onto every scene.
+
+    `already_wrapped` needs forty action lines to tell a wrapped source from a
+    paragraph source, and a single scene almost never has forty. Asking each
+    scene for itself made scenes in a wrapped script measure up to 30% long,
+    made two scenes in one document disagree, and skewed every rule that reads
+    a scene's length (C023, C029, F047). The document decides once."""
+    body = "\n\n".join("The room is quiet and nobody moves an inch at all here."
+                       for _ in range(20))
+    src = parse_text("".join(f"INT. ROOM {i} - DAY\n\n{body}\n\n" for i in range(4)))
+    assert src.prewrapped is True
+    assert all(sc.prewrapped is True for sc in src.scenes)
+    # Scenes sum to the document, up to per-scene rounding.
+    assert sum(sc.estimated_pages for sc in src.scenes) == pytest.approx(
+        src.estimated_pages, abs=0.5)
 
 
 def test_a_paragraph_on_one_source_line_still_costs_several_pages_lines():

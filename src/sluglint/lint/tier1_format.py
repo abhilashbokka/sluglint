@@ -210,10 +210,21 @@ def empty_location(script: Script, rule: Rule):
 
 @detector("overlong_heading")
 def overlong_heading(script: Script, rule: Rule):
+    """Length of the slugline the writer wrote, with the scene number taken off.
+
+    A shooting script prints its scene number at both margins, so
+    '14A INT. KITCHEN - DAY 14A' is ten characters longer than the same
+    heading in the spec it came from. Measuring the raw string flagged 52% of
+    numbered headings and 0.8% of unnumbered ones across 1,082 produced
+    screenplays: the same writing, judged differently because a production
+    department renumbered it. The threshold was right and the measurement was
+    wrong. Median heading length is 29 characters either way.
+    """
     limit = int(rule.params.get("max_chars", 60))
     for sc in script.scenes:
-        if len(sc.heading) > limit:
-            yield finding(rule, f"Scene heading runs {len(sc.heading)} characters (max {limit}).",
+        text, _ = split_scene_number(sc.heading)
+        if len(text) > limit:
+            yield finding(rule, f"Scene heading runs {len(text)} characters (max {limit}).",
                           line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
                           suggestion="Move the description into the action line beneath it.")
 

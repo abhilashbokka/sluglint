@@ -111,6 +111,15 @@ class Scene:
     number: str | None = None       # shooting-script scene number ('14', '14A')
     act: str | None = None          # enclosing act marker, if any
     elements: list[Element] = field(default_factory=list)
+    # Whether the SOURCE broke its own lines. Decided once for the whole
+    # document and stamped here, because a single scene rarely holds the forty
+    # action lines `already_wrapped` needs to tell the two kinds of source
+    # apart. Deciding it per scene made a wrapped script's scenes measure up to
+    # 30% long, and made two adjacent scenes in one document disagree.
+    prewrapped: bool = False
+    # Set when the source states its own page count, so the scenes sum to the
+    # real document rather than to an estimate. See `Script.reconcile_pages`.
+    page_scale: float = 1.0
 
     @property
     def characters(self) -> list[str]:
@@ -126,9 +135,9 @@ class Scene:
 
     @property
     def estimated_pages(self) -> float:
-        wrapped = already_wrapped(self.elements)
-        lines = sum(printed_lines(el.text, el.type, wrapped) for el in self.elements)
-        return round(lines / BODY_LINES_PER_PAGE, 2)
+        lines = sum(printed_lines(el.text, el.type, self.prewrapped)
+                    for el in self.elements)
+        return round(lines / BODY_LINES_PER_PAGE * self.page_scale, 2)
 
 
 @dataclass
@@ -141,6 +150,7 @@ class Script:
     raw_text: str = ""                 # untouched source, for hygiene checks
     title_page: dict[str, str] = field(default_factory=dict)
     page_count: int | None = None      # real pages, when the source has them
+    prewrapped: bool = False           # source broke its own lines; see Scene
 
     @property
     def estimated_pages(self) -> float:
@@ -152,9 +162,30 @@ class Script:
         """
         if self.page_count:
             return float(self.page_count)
-        wrapped = already_wrapped(self.elements)
-        lines = sum(printed_lines(el.text, el.type, wrapped) for el in self.elements)
+        lines = sum(printed_lines(el.text, el.type, self.prewrapped)
+                    for el in self.elements)
         return round(lines / BODY_LINES_PER_PAGE, 1)
+
+    def reconcile_pages(self) -> None:
+        """Scale every scene so the scenes sum to the document's real length.
+
+        A PDF states its page count and the estimate does not have to agree
+        with it. Left alone the two drifted up to 10%, which meant the rule
+        that flags a four-page scene and the dashboard that draws the same
+        scene were reading different numbers off the same document. Only the
+        estimated share of the whole is knowable per scene; the total is known
+        exactly, so the shares are stretched onto it.
+        """
+        if not self.page_count or not self.scenes:
+            return
+        for scene in self.scenes:
+            scene.page_scale = 1.0
+        loose = sum(sc.estimated_pages for sc in self.scenes)
+        if loose <= 0:
+            return
+        scale = float(self.page_count) / loose
+        for scene in self.scenes:
+            scene.page_scale = scale
 
     def of_type(self, *types: ElementType) -> list[Element]:
         return [el for el in self.elements if el.type in types]

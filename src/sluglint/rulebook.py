@@ -87,9 +87,44 @@ class Rulebook:
         return [r for r in self.rules if r.applies_to(key)]
 
 
+def _read(path: Path) -> dict:
+    """Read one rulebook file, resolving `extends:` first.
+
+    `extends: default` (or a path to another rulebook) is what makes a private
+    ruleset practical. A studio that wants the shipped 150 rules plus nine of
+    its own, with two thresholds moved, writes eleven entries rather than
+    forking a 1500-line file and losing every later fix. Rules merge by id, so
+    an entry with an existing id patches that rule field by field and an entry
+    with a new id adds one.
+    """
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    base_ref = data.pop("extends", None)
+    if not base_ref:
+        return data
+    base_path = (DEFAULT_RULEBOOK if str(base_ref) == "default"
+                 else (path.parent / str(base_ref)).resolve())
+    base = _read(base_path)
+
+    merged = dict(base)
+    by_id = {r["id"]: dict(r) for r in base.get("rules", [])}
+    order = list(by_id)
+    for raw in data.get("rules", []) or []:
+        if raw["id"] in by_id:
+            by_id[raw["id"]].update(raw)
+        else:
+            by_id[raw["id"]] = dict(raw)
+            order.append(raw["id"])
+    merged["rules"] = [by_id[i] for i in order]
+    for section in ("profiles", "genres", "comparables"):
+        combined = dict(base.get(section) or {})
+        combined.update(data.get(section) or {})
+        merged[section] = combined
+    return merged
+
+
 def load_rulebook(path: str | Path | None = None) -> Rulebook:
     p = Path(path) if path else DEFAULT_RULEBOOK
-    data = yaml.safe_load(p.read_text(encoding="utf-8"))
+    data = _read(p)
 
     profiles = {
         key: Profile(

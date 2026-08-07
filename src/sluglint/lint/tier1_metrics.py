@@ -72,11 +72,33 @@ def page_count(script: Script, rule: Rule):
 
 @detector("scene_numbers")
 def scene_numbers(script: Script, rule: Rule):
-    for sc in script.scenes:
-        if sc.number is not None:
-            yield finding(rule, "Scene heading carries a scene number (shooting-script style).",
-                          line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
-                          suggestion="Strip scene numbers from a spec draft.")
+    """One report for the document. Numbering is a decision, not a typo.
+
+    A draft either carries scene numbers or it does not, and reporting the
+    same decision once per heading produced a hundred and eighty findings on
+    one script in the corpus sweep. Where MOST headings are numbered the
+    document is a production draft being read against spec rules, which is a
+    wrong profile rather than a defect, and the message says so.
+    """
+    numbered = [sc for sc in script.scenes if sc.number is not None]
+    if not numbered:
+        return
+    share = len(numbered) / max(len(script.scenes), 1)
+    if share >= float(rule.params.get("profile_mismatch_share", 0.6)):
+        yield finding(rule, f"{len(numbered)} of {len(script.scenes)} headings are numbered "
+                            f"({share:.0%}). This is a production draft.",
+                      line_no=numbered[0].line_no, scene_index=numbered[0].index,
+                      evidence="scene numbers throughout",
+                      suggestion="Numbering is correct for a production draft. Lint it with "
+                                 "--profile shooting-script, where numbering is required and "
+                                 "continuity matters more than spec polish.")
+        return
+    yield finding(rule, f"{len(numbered)} scene heading(s) carry a scene number "
+                        f"(shooting-script style).",
+                  line_no=numbered[0].line_no, scene_index=numbered[0].index,
+                  evidence="scene numbers in a spec draft",
+                  suggestion="Strip scene numbers from a spec draft; the software renumbers "
+                             "on every revision anyway.")
 
 
 @detector("caps_overuse")

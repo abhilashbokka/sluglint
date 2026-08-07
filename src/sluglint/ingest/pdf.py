@@ -55,6 +55,14 @@ SECOND_COLUMN_FLOOR = 0.15
 DROPPED_GLYPH_FLOOR = 0.02
 # A feature averages well over one scene per page; a tenth of that is a floor.
 MIN_HEADINGS_PER_PAGE = 0.1
+# And a ceiling. Across 49 real drafts nothing legitimate ran past about 2.5
+# scenes per page; the two that did were 5.7 and 6.2, and in both cases the
+# geometry had failed and ordinary lines were being read as sluglines. A
+# document that claims six scenes a page is not a document with six scenes a
+# page, so the reader says so rather than emitting hundreds of false findings.
+MAX_HEADINGS_PER_PAGE = 3.0
+# A lone asterisk in the margin of a production draft is a revision mark.
+REVISION_MARK_RE = re.compile(r"^\*+$")
 
 PAGE_FOLIO_RE = re.compile(r"^\(?\d{1,4}[A-Z]?\.?\)?$")
 CONTINUED_RE = re.compile(
@@ -204,7 +212,7 @@ def _classify(ln: Line, action_x: float, page_height: float, right_edge: float) 
     in_margin = ln.top < page_height * MARGIN_BAND or ln.top > page_height * (1 - MARGIN_BAND)
     if in_margin and (PAGE_FOLIO_RE.match(text) or CONTINUED_RE.match(text)):
         return "drop"
-    if CONTINUED_RE.match(text):
+    if CONTINUED_RE.match(text) or REVISION_MARK_RE.match(text):
         return "drop"
     indent = (ln.x0 - action_x) / POINTS_PER_INCH
     unnumbered, _ = split_scene_number(text)

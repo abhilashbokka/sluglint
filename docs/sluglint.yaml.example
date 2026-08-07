@@ -1,0 +1,29 @@
+# Copy to `.sluglint.yaml` beside your script, or anywhere above it in the tree.
+# One file at the root of a script repository covers every draft in it.
+#
+# Nothing here can invent a rule. A rule that is not in a rulebook has no
+# principle, no source, and no handler; adding one goes through a rulebook file
+# where it has to carry its attribution. `sluglint rules` prints whatever this
+# file left standing, so every report stays explainable.
+
+profile: indian-regional      # us-spec-feature | tv-pilot | shooting-script | indian-regional
+
+# An alternate rulebook. That file may start with `extends: default` and then
+# patch shipped rules by id, which is how a house ruleset stays eleven lines
+# instead of a fork of the whole book.
+# rulebook: house-rules.yaml
+
+disable:                      # rules this project does not want
+  - F013                      # overlong scene heading
+  - F050                      # numerals in dialogue
+
+only: []                      # if non-empty, ONLY these ids run
+
+severity:                     # promote or demote any rule
+  F062: error                 # scene heading ends in punctuation
+
+params:                       # retune any threshold, without touching code
+  F013: {max_chars: 70}
+  C038: {max_cast: 12}
+
+min_severity: warning         # drop everything softer from the report

@@ -27,6 +27,8 @@ import re
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 
+from . import characters as chars
+from . import network as net
 from .models import LINES_PER_PAGE, ElementType, Script
 
 EIGHTHS = 8
@@ -80,6 +82,16 @@ class CharacterMetrics:
     last_scene: int
     longest_absence: int          # consecutive scenes without them, mid-script
     voice_only: bool
+    # Where on the page they are, which is the unit a schedule and a read-through
+    # both work in. Scene indices answer "which scene"; these answer "when".
+    page_first: float = 0.0
+    page_last: float = 0.0
+    spans: list[list[int]] = field(default_factory=list)   # runs of consecutive scenes
+    # What the script says about them. Extracted, never inferred; see characters.py.
+    age_band: str = ""
+    pronoun: str = "unspecified"
+    role: str = ""
+    described: bool = False
 
     @property
     def estimated_minutes(self) -> float:
@@ -90,6 +102,11 @@ class CharacterMetrics:
     def shoot_days_hint(self) -> int:
         """Distinct scenes is the number of setups they must be called for."""
         return len(self.scenes)
+
+    @property
+    def timeline(self) -> str:
+        """The scenes they are in, collapsed to runs: '3, 7-9, 14'."""
+        return ", ".join(f"{a + 1}" if a == b else f"{a + 1}-{b + 1}" for a, b in self.spans)
 
 
 @dataclass
@@ -123,6 +140,8 @@ class SceneMetrics:
     characters: list[str]
     dialogue_lines: int
     action_lines: int
+    page_start: float = 0.0        # cumulative page this scene opens on
+    page_end: float = 0.0
 
     @property
     def eighths(self) -> str:
@@ -174,6 +193,7 @@ class ScriptMetrics:
     locations: list[LocationMetrics] = field(default_factory=list)
     scenes: list[SceneMetrics] = field(default_factory=list)
     signals: GenreSignals | None = None
+    network: net.CharacterNetwork | None = None
 
     @property
     def night_share(self) -> float:
@@ -186,11 +206,13 @@ class ScriptMetrics:
         for c, src in zip(d["characters"], self.characters):
             c["estimated_minutes"] = src.estimated_minutes
             c["shoot_days_hint"] = src.shoot_days_hint
+            c["timeline"] = src.timeline
         for loc, src in zip(d["locations"], self.locations):
             loc["eighths"] = src.eighths
             loc["unit_moves"] = src.unit_moves
         for sc, src in zip(d["scenes"], self.scenes):
             sc["eighths"] = src.eighths
+        d["network"] = self.network.to_dict() if self.network else None
         return d
 
 
@@ -211,11 +233,26 @@ def _longest_absence(scene_idxs: list[int]) -> int:
     return longest
 
 
-def character_metrics(script: Script) -> list[CharacterMetrics]:
+def _spans(scene_idxs: list[int]) -> list[list[int]]:
+    """Consecutive scene indices collapsed into [start, end] runs."""
+    out: list[list[int]] = []
+    for i in scene_idxs:
+        if out and i == out[-1][1] + 1:
+            out[-1][1] = i
+        else:
+            out.append([i, i])
+    return out
+
+
+def character_metrics(script: Script,
+                      attributes: dict[str, chars.CharacterProfile] | None = None,
+                      page_starts: dict[int, float] | None = None) -> list[CharacterMetrics]:
     registry = script.character_registry()
     counts = script.dialogue_counts()
     total_lines = sum(counts.values()) or 1
     pages_by_scene = {sc.index: _scene_pages(sc) for sc in script.scenes}
+    starts = page_starts or {}
+    attrs = attributes or {}
     words: Counter[str] = Counter()
     presence: dict[str, set[str]] = {}
     for el in script.elements:
@@ -227,20 +264,33 @@ def character_metrics(script: Script) -> list[CharacterMetrics]:
     out = []
     for name, scene_idxs in registry.items():
         exts = presence.get(name, set())
+        tagged = {e for e in exts if e}
         # Every cue carrying a voice-over tag and none without: heard, never seen.
-        voice_only = bool(exts) and all(
-            any(tag in e for tag in ("V.O", "VO", "VOICE")) for e in exts if e)
+        # A cue with no extension at all counts against this, which is the whole
+        # test: one bare cue means the character is in the room.
+        voice_only = bool(tagged) and tagged == exts and all(
+            any(tag in e for tag in ("V.O", "VO", "VOICE")) for e in tagged)
+        ordered = sorted(scene_idxs)
+        first, last = (ordered[0], ordered[-1]) if ordered else (-1, -1)
+        profile = attrs.get(name, chars.CharacterProfile(name=name))
         out.append(CharacterMetrics(
             name=name,
-            scenes=sorted(scene_idxs),
+            scenes=ordered,
             dialogue_lines=counts.get(name, 0),
             words=words.get(name, 0),
             present_pages=round(sum(pages_by_scene.get(i, 0.0) for i in scene_idxs), 2),
             speaking_share=round(counts.get(name, 0) / total_lines, 4),
-            first_scene=min(scene_idxs) if scene_idxs else -1,
-            last_scene=max(scene_idxs) if scene_idxs else -1,
-            longest_absence=_longest_absence(sorted(scene_idxs)),
+            first_scene=first,
+            last_scene=last,
+            longest_absence=_longest_absence(ordered),
             voice_only=voice_only,
+            page_first=round(starts.get(first, 0.0), 2),
+            page_last=round(starts.get(last, 0.0) + pages_by_scene.get(last, 0.0), 2),
+            spans=_spans(ordered),
+            age_band=profile.age_band,
+            pronoun=profile.pronoun,
+            role=profile.role,
+            described=profile.described,
         ))
     out.sort(key=lambda c: (-c.dialogue_lines, c.name))
     return out
@@ -269,15 +319,19 @@ def location_metrics(script: Script) -> list[LocationMetrics]:
 
 def scene_metrics(script: Script) -> list[SceneMetrics]:
     out = []
+    cursor = 0.0
     for sc in script.scenes:
         dialogue = sum(1 for el in sc.elements if el.type == ElementType.DIALOGUE)
         action = sum(1 for el in sc.elements if el.type == ElementType.ACTION)
+        pages = _scene_pages(sc)
         out.append(SceneMetrics(
             index=sc.index, heading=sc.heading, location=sc.location,
             time_of_day=sc.time_of_day, int_ext=sc.int_ext,
-            pages=round(_scene_pages(sc), 2),
+            pages=round(pages, 2),
             characters=sc.characters, dialogue_lines=dialogue, action_lines=action,
+            page_start=round(cursor, 2), page_end=round(cursor + pages, 2),
         ))
+        cursor += pages
     return out
 
 
@@ -391,9 +445,10 @@ def compare(metrics: ScriptMetrics, bands: dict) -> list[BandCheck]:
 def analyse(script: Script) -> ScriptMetrics:
     """Every production number this script can be asked for, in one pass."""
     pages = script.estimated_pages
-    chars = character_metrics(script)
-    locs = location_metrics(script)
     scenes = scene_metrics(script)
+    page_starts = {sc.index: sc.page_start for sc in scenes}
+    cast = character_metrics(script, chars.profiles(script), page_starts)
+    locs = location_metrics(script)
 
     day_pages = night_pages = int_pages = ext_pages = 0.0
     for sc, m in zip(script.scenes, scenes):
@@ -418,7 +473,7 @@ def analyse(script: Script) -> ScriptMetrics:
         pages=round(pages, 1),
         runtime_minutes=round(pages, 1),   # the one page, one minute convention
         scene_count=len(script.scenes),
-        speaking_cast=len(chars),
+        speaking_cast=len(cast),
         location_count=len(locs),
         company_moves=moves,
         # Two places, not one: a short scene rounds to nothing at one decimal
@@ -427,8 +482,9 @@ def analyse(script: Script) -> ScriptMetrics:
         night_pages=round(night_pages, 2),
         interior_pages=round(int_pages, 2),
         exterior_pages=round(ext_pages, 2),
-        dialogue_lines=sum(c.dialogue_lines for c in chars),
+        dialogue_lines=sum(c.dialogue_lines for c in cast),
         action_lines=sum(1 for el in script.elements if el.type == ElementType.ACTION),
-        characters=chars, locations=locs, scenes=scenes,
+        characters=cast, locations=locs, scenes=scenes,
         signals=genre_signals(script, pages),
+        network=net.build(script),
     )

@@ -15,7 +15,7 @@ A defect caught by a neighbouring rule still gets fixed.
 
 | Rule | Injected defect | Applied | Caught | Recall | Caught by any rule | Collateral |
 |---|---|---:|---:|---:|---:|---|
-| `C001` | misspell a character cue in some scenes | 6 | 6 | 100% | 100% | `C002` x1 |
+| `C001` | misspell a character cue in some scenes | 6 | 6 | 100% | 100% | `C036` x4, `C002` x1 |
 | `C005` | spell one location slightly differently | 3 | 3 | 100% | 100% | `C004` x1 |
 | `C014` | open a flashback and never close it | 6 | 6 | 100% | 100% | none |
 | `C019` | abbreviate a location in one heading | 2 | 1 | 50% | 100% | `C005` x2 |
@@ -52,12 +52,14 @@ candidate false positive and wants a human read.
 | `C003` | 9 |
 | `F008` | 7 |
 | `C001` | 5 |
-| `F009` | 5 |
 | `C017` | 3 |
+| `C036` | 3 |
 | `F025` | 2 |
 | `F005` | 2 |
 | `C002` | 2 |
 | `F015` | 2 |
+| `F051` | 1 |
+| `F009` | 1 |
 | `C011` | 1 |
 | `F002` | 1 |
 | `F004` | 1 |
@@ -71,12 +73,12 @@ Draft drift on `the_last_train.fountain`, one change per draft.
 
 | Draft | Change made | Flagged the same day by | Findings |
 |---|---|---|---:|
-| v1 | (original) | | 16 |
-| v2 | ANGLE ON added after a scene heading | `F005` | 17 |
-| v3 | MEERA spelled MEER in 2 of 4 cues | `C001` | 17 |
-| v4 | time marker removed from EXT. TRAIN YARD - DAY | `F002` | 17 |
-| v5 | one action line repeated into a six-line block | `F004` | 22 |
-| v6 | BEGIN FLASHBACK inserted with no matching close | `C014` | 23 |
+| v1 | (original) | | 19 |
+| v2 | ANGLE ON added after a scene heading | `F005` | 20 |
+| v3 | MEERA spelled MEER in 2 of 4 cues | `C001`, `C036` | 20 |
+| v4 | time marker removed from EXT. TRAIN YARD - DAY | `F002` | 20 |
+| v5 | one action line repeated into a ten-line block | `F004` | 29 |
+| v6 | BEGIN FLASHBACK inserted with no matching close | `C014` | 30 |
 
 Each defect is named in the draft that introduced it. Without the diff
 the name drift in v3 is one line inside a growing list of findings, and

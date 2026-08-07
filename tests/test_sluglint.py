@@ -138,7 +138,7 @@ def test_parser_is_forgiving_about_garbage():
 # ============================================================ rulebook
 
 def test_rulebook_rule_count():
-    assert len(BOOK.rules) == 106
+    assert len(BOOK.rules) == 150
 
 
 def test_rule_ids_and_detect_keys_are_unique():
@@ -238,7 +238,7 @@ SNIPPETS = [
     ("F030", "INT. BAR - DAY\n\nHe drinks.\n", {"min_pages": 0}),
     ("F031", "INT. BAR - DAY\n\nHe drinks.\n\nSLOWLY FADE INTO:\n\nEXT. STREET - DAY\n\nRain.\n", {}),
     # --- tier 1: metrics and style
-    ("F004", "INT. BAR - DAY\n\none\ntwo\nthree\nfour\nfive\n", {}),
+    ("F004", "INT. BAR - DAY\n\n" + "\n".join(f"line {i}" for i in range(9)) + "\n", {}),
     ("F005", "INT. BAR - DAY\n\nANGLE ON the glass.\n", {}),
     ("F006", ("INT. A - DAY\n\nx\n\nCUT TO:\n\nINT. B - DAY\n\ny\n\nCUT TO:\n\n"
               "INT. C - DAY\n\nz\n\nCUT TO:\n\nINT. D - DAY\n\nw\n"), {}),
@@ -303,6 +303,57 @@ SNIPPETS = [
               + "\nINT. A - DAY\n\nx\n\nINT. B - DAY\n\ny\n"), {"min_locations": 3}),
     ("C030", "INT. BAR - DAY\n\nSTRANGER (40s) sits.\n\nSTRANGER\nOne.\nTwo.\n",
      {"min_lines": 2}),
+
+    # --- tier 1: prose inside the elements
+    ("F049", "INT. BAR - DAY\n\nJOHN\nGET OUT OF HERE NOW.\n\nMARY\nI SAID GET OUT.\n",
+     {"min_count": 2, "max_per_page": 0.0}),
+    ("F050", "INT. BAR - DAY\n\nJOHN\nI need 4 of them.\n\nMARY\nTake 12 instead.\n",
+     {"min_count": 2, "max_per_page": 0.0}),
+    ("F051", "INT. BAR - DAY\n\nJOHN\n(crosses to the door)\nLater.\n", {}),
+    ("F052", "INT. BAR - DAY\n\nJOHN\n(beat)\nOne.\n\nMARY\n(a beat)\nTwo.\n",
+     {"min_count": 2, "max_per_page": 0.0}),
+    ("F053", "INT. BAR - DAY\n\nJOHN\nOne.\n\nHe drinks.\n\nJOHN (CONT'D)\nTwo.\n\n"
+              "MARY\nThree.\n\nShe stands.\n\nMARY\nFour.\n", {}),
+    ("F054", "INT. BAR - DAY\n\nSarah pours. Daniel waits.\n\nSARAH\nOne.\nTwo.\n\n"
+              "DANIEL\nThree.\nFour.\n", {}),
+    ("F055", 'INT. BAR - DAY\n\nHe reads the sign: "CLOSED FOR THE SEASON.\n', {}),
+    ("F056", "INT. BAR - DAY\n\nHe drinks and leaves.\n", {"min_pages": 0}),
+    ("F057", "INT. BAR - DAY\n\nHe drinks.\n\nCUT TO:\n\nDISSOLVE TO:\n\n"
+              "INT. HALL - DAY\n\nx\n", {}),
+    ("F058", "INT. BAR - DAY\n\nSUPER SIX MONTHS LATER\n", {}),
+    ("F059", "INT. BAR - DAY\n\nA MONTAGE of the trip home.\n\nINT. HALL - DAY\n\nHe waits.\n",
+     {}),
+    ("F060", "INT. BAR - DAY\n\nHe drinks.\n\n\n\n\nHe leaves.\n", {}),
+    ("F061", "INT. BAR - DAY\r\n\r\nHe drinks.\n", {}),
+    ("F062", "INT. BAR - DAY.\n\nHe drinks.\n", {}),
+    ("F063", "INT. HOUSE/KITCHEN - DAY\n\nHe cooks.\n", {}),
+    ("F064", "INT. BAR - DAY\n\nJOHN AND MARY AND THE DOG\nHello.\n", {}),
+    ("F065", "INT. BAR - DAY\n\nJOHN\n(angry)\n(quietly)\nFine.\n", {}),
+    ("F066", "INT. BAR - DAY\n\nPOV of the street below.\n", {}),
+    ("F067", "INT. BAR - DAY\n\nSFX: a door slams somewhere upstairs.\n", {}),
+    ("F068", "INT. A - DAY\n\nx\n\nINT B - DAY\n\ny\n", {}),
+    ("F069", "INT. BAR - DAY\n\nJOHN(V.O.)\nHello.\n", {}),
+    ("F070", "INT. BAR - DAY\n\nHe drinks , slowly .\n", {"min_count": 1}),
+    ("F071", "INT. BAR - DAY\n\nHe ran ran for the door.\n", {}),
+    ("F072", "INT. BAR - DAY\n\nRAVI: Where were you?\n\nRAVI: Answer me.\n", {}),
+
+    # --- tier 2: the cast as a graph, and reference decay
+    ("C031", "INT. BAR - DAY\n\nCHITRA'S FATHER\nOne.\n\nCHITRA\u2019S FATHER\nTwo.\n", {}),
+    ("C032", "INT. A - DAY\n\nJOHN\nHi.\n\nMARY\nHi.\n\nINT. B - DAY\n\nSOLO\nOne.\nTwo.\n",
+     {}),
+    ("C033", "INT. A - DAY\n\nJOHN\n1.\n\nMARY\n2.\n\nINT. B - DAY\n\nANA\n3.\n\n"
+              "BEN\n4.\n\nCAL\n5.\n", {}),
+    ("C034", "INT. HALL - DAY\n\nx\n\n" * 3
+             + "".join(f"INT. SET{c} - DAY\n\ny\n\n" for c in "DEFGHI"), {}),
+    ("C035", "INT. A - DAY\n\nThe LOCKET glints.\n\nINT. B - DAY\n\nHe holds the LOCKET.\n\n"
+              "INT. C - DAY\n\nThe LOCKET again.\n\n"
+             + "".join(f"INT. S{c} - DAY\n\nz\n\n" for c in "DEFGHIJK"), {}),
+    ("C036", "INT. BAR - DAY\n\n"
+             + "\n\n".join(f"{n}\nHi." for n in ["ANA", "BEN", "CAL", "DEV", "EVE"]) + "\n", {}),
+    ("C037", "INT. BAR - DAY\n\nWAITER\nOne.\nTwo.\n", {"min_lines": 2}),
+    ("C038", "".join(f"INT. S{i} - DAY\n\nP{i}\nHi.\n\n" for i in range(24)),
+     {"min_scenes": 4, "max_cast": 1, "opening_share": 0.5}),
+    ("C040", "INT. BAR - DAY\n\nJOHN\nOne.\nTwo.\nThree.\n", {"min_lines": 2}),
 ]
 
 
@@ -326,6 +377,9 @@ PROFILE_SNIPPETS = [
     ("F045", "indian-regional", "EXT. RIVER - DAY\n\nHe rows.\n", {}),
     ("F046", "indian-regional",
      "EXT. RIVER - DAY\n\nRAJU (30s) rows.\n\nRAJU\nHi.\n\n\u0c30\u0c3e\u0c1c\u0c41\nHi again.\n", {}),
+    ("C039", "us-spec-feature",
+     "".join(f"INT. S{i} - DAY\n\nJOHN\nHi.\n\n" for i in range(8))
+     + "INT. LAST - DAY\n\nLATECOMER\nOne.\nTwo.\n", {"min_lines": 2}),
     ("C027", "tv-pilot",
      ("".join(f"INT. {c} - DAY\n\nx\n\n" for c in "ABCDE")
       + "INT. F - DAY\n\nNURSE (30s) arrives.\n\nNURSE\n1.\n\n"
@@ -500,9 +554,13 @@ def test_one_character_spelled_two_ways_is_still_name_drift():
 
 
 def test_wall_of_text_counts_one_paragraph_not_a_whole_scene():
-    """Three two-line beats are not a wall of text; six unbroken lines are."""
-    beats = "INT. BAR - DAY\n\na\nb\n\nc\nd\n\ne\nf\n"
-    wall = "INT. BAR - DAY\n\na\nb\nc\nd\ne\nf\n"
+    """Separate beats are never a wall however many there are; one long one is.
+
+    The threshold is 7 because 18,299 action paragraphs in produced
+    screenplays put four lines at the 95th percentile: normal, not defective.
+    """
+    beats = "INT. BAR - DAY\n\n" + "\n\n".join("a\nb" for _ in range(6)) + "\n"
+    wall = "INT. BAR - DAY\n\n" + "\n".join("line " + str(i) for i in range(9)) + "\n"
     assert not [f for f in lint(parse_text(beats)) if f.rule_id == "F004"]
     assert [f for f in lint(parse_text(wall)) if f.rule_id == "F004"]
 
@@ -764,3 +822,220 @@ def test_dashboard_survives_a_script_with_nothing_in_it():
     from sluglint.metrics import analyse
     page = dashboard.render(analyse(parse_text("")), [], [], profile="us-spec-feature")
     assert "Untitled script" in page
+
+
+# ============================================================ character attributes
+
+def test_age_is_read_as_the_band_the_script_wrote():
+    from sluglint.characters import parse_age
+    assert parse_age("30s")[1:] == (30, 39)
+    assert parse_age("early 40s")[1:] == (40, 43)
+    assert parse_age("mid-20s")[1:] == (24, 26)
+    assert parse_age("late fifties")[1:] == (56, 59)
+    assert parse_age("34")[1:] == (34, 34)
+    assert parse_age("28-35")[1:] == (28, 35)
+    assert parse_age("a mechanic") == ("", None, None)
+
+
+def test_nothing_about_a_character_is_inferred_from_their_name():
+    """The one boundary that matters here: names carry no facts."""
+    from sluglint.characters import profiles
+    text = ("INT. ROOM - DAY\n\nPRIYA sits. SANJAY stands.\n\n"
+            "PRIYA\nOne.\n\nSANJAY\nTwo.\n")
+    got = profiles(parse_text(text))
+    assert got["PRIYA"].pronoun == "unspecified"
+    assert got["SANJAY"].pronoun == "unspecified"
+    assert got["PRIYA"].age_band == ""
+
+
+def test_a_pronoun_is_only_read_from_unambiguous_sentences():
+    from sluglint.characters import profiles
+    lines = "\n\n".join(f"NADIA locks the door. She checks the street. Line {i}."
+                        for i in range(6))
+    text = f"INT. FLAT - NIGHT\n\n{lines}\n\nNADIA\nHome.\n"
+    assert profiles(parse_text(text))["NADIA"].pronoun == "she"
+    # Two people in one sentence: the pronoun could belong to either.
+    crowded = ("INT. FLAT - NIGHT\n\nNADIA blocks his path with a mop.\n\n"
+               "NADIA\nHome.\n\nOSCAR\nMove.\n")
+    assert profiles(parse_text(crowded))["NADIA"].pronoun == "unspecified"
+
+
+def test_role_and_age_come_out_of_the_same_parenthetical():
+    from sluglint.characters import profiles
+    text = "INT. SHOP - DAY\n\nRAJU (early 40s, a mechanic) wipes his hands.\n\nRAJU\nHi.\n"
+    got = profiles(parse_text(text))["RAJU"]
+    assert got.age_band == "40-43" and "mechanic" in got.role
+
+
+# ============================================================ character network
+
+NETWORK_TEXT = (
+    "INT. A - DAY\n\nANA\n1.\n\nBEN\n2.\n\n"
+    "INT. B - DAY\n\nBEN\n3.\n\nCAL\n4.\n\n"
+    "INT. C - DAY\n\nDEV\n5.\n\nEVE\n6.\n"
+)
+
+
+def test_two_people_in_a_scene_are_one_edge():
+    from sluglint import network
+    g = network.build(parse_text(NETWORK_TEXT))
+    pairs = {(e.a, e.b) for e in g.edges}
+    assert pairs == {("ANA", "BEN"), ("BEN", "CAL"), ("DEV", "EVE")}
+
+
+def test_a_cast_that_never_meets_is_two_components():
+    from sluglint import network
+    g = network.build(parse_text(NETWORK_TEXT))
+    assert sorted(len(c) for c in g.components) == [2, 3]
+
+
+def test_the_only_link_between_two_groups_is_a_cut_vertex():
+    from sluglint import network
+    g = network.build(parse_text(NETWORK_TEXT))
+    # BEN alone joins ANA to CAL. DEV and EVE hold each other up and neither is
+    # load bearing, which is the distinction the check exists to make.
+    assert g.cut_vertices == ["BEN"]
+
+
+def test_a_solo_speaker_is_isolated_rather_than_a_cut_vertex():
+    from sluglint import network
+    g = network.build(parse_text("INT. A - DAY\n\nANA\n1.\n\nINT. B - DAY\n\nBEN\n2.\n"))
+    assert g.isolated == ["ANA", "BEN"] and g.cut_vertices == []
+
+
+# ============================================================ per-character timeline
+
+def test_a_character_timeline_collapses_consecutive_scenes():
+    from sluglint.metrics import analyse
+    text = "".join(f"INT. S{i} - DAY\n\nANA\nHi.\n\n" if i in (0, 1, 2, 5)
+                   else f"INT. S{i} - DAY\n\nBEN\nHi.\n\n" for i in range(7))
+    ana = next(c for c in analyse(parse_text(text)).characters if c.name == "ANA")
+    assert ana.timeline == "1-3, 6"
+    assert ana.page_first < ana.page_last
+
+
+def test_scene_page_positions_run_end_to_end():
+    from sluglint.metrics import analyse
+    m = analyse(parse_file(V1))
+    assert m.scenes[0].page_start == 0.0
+    for prev, cur in zip(m.scenes, m.scenes[1:]):
+        assert cur.page_start == prev.page_end
+    assert abs(m.scenes[-1].page_end - m.pages) < 0.1
+
+
+def test_a_character_cued_without_an_extension_is_not_voice_only():
+    from sluglint.metrics import analyse
+    m = analyse(parse_text("INT. A - DAY\n\nANA\nHi.\n\nBEN (V.O.)\nHello.\n"))
+    by_name = {c.name: c for c in m.characters}
+    assert not by_name["ANA"].voice_only and by_name["BEN"].voice_only
+
+
+# ============================================================ project config
+
+def test_config_disables_regrades_and_retunes(tmp_path):
+    from sluglint import config
+    (tmp_path / ".sluglint.yaml").write_text(
+        "profile: tv-pilot\ndisable: [F013]\nseverity: {F062: error}\n"
+        "params: {F002: {min_pages: 3}}\nmin_severity: warning\n", encoding="utf-8")
+    cfg = config.discover(tmp_path)
+    assert cfg.profile == "tv-pilot"
+    book = cfg.apply(BOOK)
+    ids = {r.id for r in book.rules}
+    assert "F013" not in ids and "F062" in ids
+    assert next(r for r in book.rules if r.id == "F062").severity == "error"
+    assert next(r for r in book.rules if r.id == "F002").params["min_pages"] == 3
+    kept = cfg.filter([Finding("X", "x", Severity.SUGGESTION, "m"),
+                       Finding("Y", "y", Severity.ERROR, "m")])
+    assert [f.rule_id for f in kept] == ["Y"]
+
+
+def test_config_only_list_is_an_allow_list(tmp_path):
+    from sluglint import config
+    (tmp_path / ".sluglint.yaml").write_text("only: [F001, C031]\n", encoding="utf-8")
+    book = config.discover(tmp_path).apply(BOOK)
+    assert {r.id for r in book.rules} == {"F001", "C031"}
+
+
+def test_config_rejects_a_key_it_does_not_understand(tmp_path):
+    from sluglint import config
+    (tmp_path / ".sluglint.yaml").write_text("disabled: [F001]\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="unknown config keys"):
+        config.discover(tmp_path)
+
+
+def test_no_config_anywhere_is_not_an_error(tmp_path):
+    from sluglint import config
+    assert config.discover(tmp_path).is_empty or config.discover(tmp_path).path is not None
+
+
+def test_a_house_rulebook_extends_the_shipped_one(tmp_path):
+    """The point of `extends`: eleven lines, not a 1500-line fork."""
+    from sluglint.rulebook import load_rulebook
+    (tmp_path / "house.yaml").write_text(
+        "extends: default\nrules:\n"
+        "  - id: F013\n    severity: error\n"
+        "  - id: H001\n    name: House rule\n    tier: 1\n    category: format\n"
+        "    severity: warning\n    detect: slugline_prefix\n"
+        "    principle: A house convention.\n    source: HouseStyle\n", encoding="utf-8")
+    book = load_rulebook(tmp_path / "house.yaml")
+    by_id = {r.id: r for r in book.rules}
+    assert len(book.rules) == len(BOOK.rules) + 1
+    assert by_id["F013"].severity == "error"        # patched in place
+    assert by_id["F013"].principle                  # and kept everything else
+    assert by_id["H001"].name == "House rule"       # and added a new one
+    assert book.profiles and book.genres            # inherited wholesale
+
+
+# ============================================================ generated summaries
+
+def test_the_logline_surface_never_produces_findings():
+    """Model output is fenced out of the linter by construction.
+
+    Not a stylistic preference. A Finding is a claim that something on the page
+    is wrong, and every one of them has to be checkable against the page. This
+    module cannot make that promise, so it is not allowed to make Findings.
+    """
+    import sluglint.logline as mod
+    assert "Finding" not in dir(mod) and "detector" not in dir(mod)
+    assert not any(mod.__name__ in str(v) for v in registered_keys())
+    summary = mod.Summary(title="T", model="m", script_hash="h", synopsis="s")
+    assert summary.generated and "language model" in summary.to_dict()["disclaimer"]
+
+
+def test_the_logline_cache_is_keyed_on_the_script_and_the_model(tmp_path, monkeypatch):
+    from sluglint import logline
+    monkeypatch.setattr(logline, "CACHE_DIR", tmp_path)
+    one, two = parse_text("INT. A - DAY\n\nx\n"), parse_text("INT. B - DAY\n\ny\n")
+    assert logline.cache_path(one, "m", 3) != logline.cache_path(two, "m", 3)
+    assert logline.cache_path(one, "m", 3) != logline.cache_path(one, "m", 5)
+    assert logline.load_cached(one, "m", 3) is None
+
+
+def test_logline_reports_a_missing_key_instead_of_crashing(monkeypatch):
+    from sluglint import logline
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(logline, "load_cached", lambda *a, **k: None)
+    summary, notices = logline.generate(parse_file(V1))
+    assert summary is None and any("ANTHROPIC_API_KEY" in n for n in notices)
+
+
+# ============================================================ the network on the page
+
+def test_the_network_graph_reaches_the_dashboard():
+    from sluglint import dashboard
+    from sluglint.metrics import analyse
+    m = analyse(parse_text(NETWORK_TEXT))
+    page = dashboard.render(m, [], [], profile="us-spec-feature")
+    assert "Who plays against whom" in page
+    assert "<svg" in page and "<script" not in page.lower()
+    # The graph seats characters deterministically, so two runs are comparable.
+    assert page == dashboard.render(analyse(parse_text(NETWORK_TEXT)), [], [],
+                                    profile="us-spec-feature")
+
+
+def test_the_cast_table_says_what_the_page_does_not_know():
+    from sluglint import dashboard
+    from sluglint.metrics import analyse
+    page = dashboard.render(analyse(parse_text(NETWORK_TEXT)), [], [],
+                            profile="us-spec-feature")
+    assert "never guessed from a name" in page

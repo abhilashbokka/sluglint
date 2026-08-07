@@ -21,7 +21,7 @@ pip install -e ".[dev,pdf,llm,indic]"
 # or the minimum, if you are only touching tiers 1 and 2:
 #   pip install -e ".[dev]"      add ,pdf to read PDFs, ,llm for the tier-3 judge
 
-pytest -q                    # 153 tests
+pytest -q                    # 208 tests
 ruff check . && pylint src/sluglint
 python benchmark/run.py      # regenerates benchmark/REPORT.md
 ```

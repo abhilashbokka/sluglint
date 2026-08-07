@@ -94,6 +94,15 @@ def dialogue_blocks(script: Script) -> list[list[Element]]:
     return out
 
 
+_SPEECH_TYPES = (ElementType.ACTION, ElementType.DIALOGUE,
+                 ElementType.PARENTHETICAL, ElementType.CHARACTER)
+
+
+def _written_body(scene) -> list:
+    """Everything in a scene a human typed, in order."""
+    return [el for el in scene.elements if el.type in _SPEECH_TYPES and el.text.strip()]
+
+
 def _paragraphs(script: Script, types: tuple[ElementType, ...]):
     """Consecutive same-type elements on consecutive lines: one written paragraph.
 
@@ -132,11 +141,28 @@ def slugline_prefix(script: Script, rule: Rule):
 
 @detector("missing_time_of_day")
 def missing_time_of_day(script: Script, rule: Rule):
+    """No time marker at all, as opposed to one written unconventionally.
+
+    The parser only recognises the canonical tokens, so 'LATE AFTERNOON',
+    'HOURS LATER', 'FAINT DAWN', and 'OFFICE-DAY' all arrive here with
+    `time_of_day` unset. None of them is a heading with no time of day; they
+    are a heading whose time of day is spelled a way the parser does not
+    accept, which is F011's business and F014's, not this rule's.
+
+    Reporting them here cost more than any other single mistake in the book:
+    on a sweep of 49 real drafts it was the largest source of findings and
+    almost all of them were wrong. So the test is meaning, not spelling. If
+    the tail carries a word that MEANS a time, this rule stays quiet and lets
+    the formatting rules describe what is actually wrong with it.
+    """
     for sc in script.scenes:
-        if sc.int_ext is not None and sc.time_of_day is None:
-            yield finding(rule, "Scene heading has no time of day.",
-                          line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
-                          suggestion=f"e.g. '{sc.heading} - DAY'")
+        if sc.int_ext is None or sc.time_of_day is not None:
+            continue
+        if TIME_STEMS.search(sc.heading.upper()):
+            continue
+        yield finding(rule, "Scene heading has no time of day.",
+                      line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
+                      suggestion=f"e.g. '{sc.heading} - DAY'")
 
 
 @detector("heading_not_uppercase")
@@ -150,15 +176,26 @@ def heading_not_uppercase(script: Script, rule: Rule):
 
 @detector("nonstandard_time_of_day")
 def nonstandard_time_of_day(script: Script, rule: Rule):
+    """One report per distinct token, not per scene that uses it.
+
+    A draft that marks every heading '- DAY <<COLOUR SEQUENCE>>' has made one
+    decision, not eighty. Reporting the token once and saying how many headings
+    carry it is the same information in a form a writer can act on.
+    """
+    seen: dict[str, list] = {}
     for sc in script.scenes:
         tail = _trailing_segment(sc.heading)
         # Only fire when the tail READS as a time marker but is not a standard
         # one. Otherwise every sub-location ('- KITCHEN') would be a finding.
         if tail and tail not in TIMES_OF_DAY and TIME_STEMS.search(tail):
-            yield finding(rule, f"Time marker '{tail}' is not one of the standard tokens.",
-                          line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
-                          suggestion="Use DAY, NIGHT, DAWN, DUSK, MORNING, EVENING, "
-                                     "CONTINUOUS, LATER, or SAME.")
+            seen.setdefault(tail, []).append(sc)
+    for tail, scenes in seen.items():
+        where = "" if len(scenes) == 1 else f" ({len(scenes)} headings)"
+        yield finding(rule, f"Time marker '{tail}' is not one of the standard tokens{where}.",
+                      line_no=scenes[0].line_no, scene_index=scenes[0].index,
+                      evidence=f"time marker {tail}",
+                      suggestion="Use DAY, NIGHT, DAWN, DUSK, MORNING, EVENING, "
+                                 "CONTINUOUS, LATER, or SAME.")
 
 
 @detector("empty_location")
@@ -385,15 +422,33 @@ def smart_typography(script: Script, rule: Rule):
 
 @detector("unbalanced_delimiters")
 def unbalanced_delimiters(script: Script, rule: Rule):
-    checked = (ElementType.ACTION, ElementType.DIALOGUE,
-               ElementType.PARENTHETICAL, ElementType.CHARACTER)
-    for block in _paragraphs(script, checked):
-        text = " ".join(el.text for el in block)
+    """Bracket balance over a whole scene, not over one paragraph.
+
+    A wide parenthetical wraps, and its second half lands in a different
+    element on a non-adjacent line: '(as he starts to head back' then, after a
+    gap, 'toward his desk--) Too many students'. Any grouping that depends on
+    element type or line adjacency splits that pair and reports two defects
+    where there are none, and on a sweep of real drafts that was over a
+    thousand false reports.
+
+    A scene is the coarsest unit that is still actionable and the only one
+    robust to every wrap, so balance is counted across the scene and reported
+    once. A bracket that opens in one scene and closes in the next is a defect
+    either way.
+    """
+    for scene in script.scenes:
+        body = _written_body(scene)
+        if not body:
+            continue
+        text = " ".join(el.text for el in body)
         for opener, closer in (("(", ")"), ("[", "]")):
-            if text.count(opener) != text.count(closer):
-                yield finding(rule, f"Unbalanced '{opener}{closer}' in this paragraph.",
-                              line_no=block[0].line_no, scene_index=block[0].scene_index,
-                              evidence=text[:80],
+            n_open, n_close = text.count(opener), text.count(closer)
+            if n_open != n_close:
+                stray = "unclosed" if n_open > n_close else "unopened"
+                yield finding(rule, f"Scene {scene.index + 1} has {abs(n_open - n_close)} "
+                                    f"{stray} '{opener}{closer}'.",
+                              line_no=scene.line_no, scene_index=scene.index,
+                              evidence=f"unbalanced {opener}{closer} in scene {scene.index + 1}",
                               suggestion="Close the bracket, or delete the stray one.")
                 break
 

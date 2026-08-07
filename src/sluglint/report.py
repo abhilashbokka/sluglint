@@ -98,6 +98,14 @@ def _bar(value: float, peak: float, width: int = 22) -> str:
     return "#" * filled + "." * (width - filled)
 
 
+def _clip(text: str, width: int) -> str:
+    """Truncate a comma-separated list at a comma, never mid-number."""
+    if len(text) <= width:
+        return text
+    head = text[:width].rsplit(",", 1)[0]
+    return f"{head}, ..."
+
+
 def _band_line(check) -> str:
     mark = "  ok " if check.inside else f" {check.verdict:>4}"
     return f"  [{mark}] {check.signal:<16} {check.value:<9} band {check.low:g} to {check.high:g}"
@@ -127,6 +135,37 @@ def render_stats_console(metrics, genres=None, comparables=None, top: int = 12) 
                 f"{len(c.scenes):>3} sc  {c.speaking_share:>5.1%}{flag}")
         if len(m.characters) > top:
             out.append(f"  ... and {len(m.characters) - top} more speaking parts")
+
+        # Age, pronoun, and role are read back from what the script writes down.
+        # A dash is an honest answer and is the common one.
+        out += ["", "AS THE SCRIPT DESCRIBES THEM  (extracted, never inferred from a name)",
+                "  A dash means the page does not say. 'unclear' means two people share too",
+                "  many sentences for the pronoun to be attributed to one of them.", ""]
+        out.append(f"  {'character':<22} {'age':<8} {'pronoun':<9} {'on pages':<12} "
+                   f"{'role as written':<20} scenes")
+        for c in m.characters[:top]:
+            pages = f"{c.page_first:g}-{c.page_last:g}"
+            out.append(
+                f"  {c.name[:22]:<22} {(c.age_band or '-'):<8} "
+                f"{('-' if c.pronoun == 'unspecified' else c.pronoun):<9} {pages:<12} "
+                f"{(c.role or '-')[:20]:<20} {_clip(c.timeline, 30)}")
+
+    if m.network and m.network.nodes:
+        g = m.network
+        groups = [grp for grp in g.components if len(grp) > 1]
+        out += ["", "WHO PLAYS AGAINST WHOM  (two people share an edge when they share a scene)", ""]
+        out.append(f"  {g.density:.0%} of all possible pairings actually share a scene")
+        out.append(f"  {len(groups)} group(s) of two or more; "
+                   f"{len(g.isolated)} never in a room with another speaker")
+        if g.cut_vertices:
+            out.append(f"  only link between two groups: {', '.join(g.cut_vertices[:6])}")
+        if g.isolated:
+            out.append(f"  never share a scene: {', '.join(g.isolated[:6])}")
+        out.append("")
+        for node in g.nodes[:min(top, 8)]:
+            mark = " *" if node.cut_vertex else "  "
+            out.append(f"  {node.name[:22]:<22}{mark} plays against {node.degree:>3} of the cast "
+                       f"({node.reach:.0%})  {node.weighted_degree:>4} shared scenes")
 
     if m.locations:
         peak = m.locations[0].pages or 1.0

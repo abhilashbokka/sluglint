@@ -94,6 +94,29 @@ def _differing_core(a: str, b: str) -> tuple[str, str]:
     return a[head:len(a) - tail], b[head:len(b) - tail]
 
 
+# Typographic punctuation and its ASCII twin look identical on paper and are
+# different characters to every registry downstream.
+TYPOGRAPHIC = {"\u2019": "'", "\u2018": "'", "\u2013": "-", "\u2014": "-"}
+
+
+def plain(text: str) -> str:
+    """Fold typographic punctuation onto its ASCII twin."""
+    for fancy, ascii_form in TYPOGRAPHIC.items():
+        text = text.replace(fancy, ascii_form)
+    return text
+
+
+def _only_typography(a: str, b: str) -> bool:
+    """True when two spellings differ ONLY in punctuation characters.
+
+    'CHITRA'S FATHER' written with a typewriter apostrophe and with a
+    typographic one is one name, and C031 reports it with the exact fix. Left
+    unguarded, the fuzzy matchers report the same pair a second time with a
+    vaguer message, which is how a rulebook starts to feel like noise.
+    """
+    return a != b and plain(a) == plain(b)
+
+
 def _deliberately_distinct(a: str, b: str, thresh: float) -> bool:
     """True when two near-identical cues name different people on purpose.
 
@@ -175,7 +198,7 @@ def name_drift(script: Script, rule: Rule):
     registry = script.character_registry()
     thresh = float(rule.params.get("similarity_threshold", 0.80))
     for a, b in combinations(sorted(registry), 2):
-        if _deliberately_distinct(a, b, thresh):
+        if _deliberately_distinct(a, b, thresh) or _only_typography(a, b):
             continue
         ratio = similar(a, b)
         if a in b.split() or b in a.split():  # 'RAJ' inside 'RAJ KUMAR'
@@ -397,7 +420,7 @@ def location_drift(script: Script, rule: Rule):
         # Places take the same guard cues do: two sluglines that agree except
         # for one whole word are two places, and "ROOM 1" and "ROOM 2" are two
         # rooms. Only near-identical spelling of the same name is drift.
-        if _deliberately_distinct(a, b, thresh):
+        if _deliberately_distinct(a, b, thresh) or _only_typography(a, b):
             continue
         ratio = similar(a, b)
         if thresh <= ratio < 1.0:

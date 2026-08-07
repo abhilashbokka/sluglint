@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import html
 import json
+import math
 
 # Light and dark are both selected rather than one being flipped from the other.
 TOKENS = """
@@ -209,6 +210,69 @@ def _braid(characters: list, scene_count: int, width: int = 1040, top: int = 8) 
     return "".join(out)
 
 
+def _network_graph(graph, width: int = 1040, height: int = 620, top: int = 18) -> tuple[str, int]:
+    """Who shares a scene with whom, laid out on a circle.
+
+    A circle rather than a force layout, and deliberately. A force layout puts
+    the same cast in a different place every time it is drawn, which makes two
+    runs of the same script impossible to compare and makes the picture look
+    like it means more than it does. Fixed seats in scene-entry order mean the
+    only thing that moves between drafts is the connections, which is the thing
+    worth looking at.
+
+    Returns (svg, number of nodes dropped) so the caller can say what was cut.
+    """
+    if not graph or not graph.nodes:
+        return "", 0
+    ranked = graph.nodes[:top]
+    dropped = len(graph.nodes) - len(ranked)
+    seats = sorted(ranked, key=lambda n: (n.component, -n.weighted_degree, n.name))
+    index = {n.name: i for i, n in enumerate(seats)}
+    n = len(seats)
+    cx, cy = width / 2, height / 2
+    radius = min(width, height) / 2 - 104
+
+    def point(i: int) -> tuple[float, float]:
+        angle = 2 * math.pi * i / n - math.pi / 2
+        return cx + radius * math.cos(angle), cy + radius * math.sin(angle)
+
+    peak = max((e.weight for e in graph.edges), default=1) or 1
+    out = [f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="Characters as a graph. '
+           f'A line joins two people who share a scene; thicker lines are more scenes.">']
+    for e in graph.edges:
+        if e.a not in index or e.b not in index:
+            continue
+        x1, y1 = point(index[e.a])
+        x2, y2 = point(index[e.b])
+        share = e.weight / peak
+        out.append(
+            f'<path d="M{x1:.1f},{y1:.1f} Q{cx:.1f},{cy:.1f} {x2:.1f},{y2:.1f}" fill="none" '
+            f'stroke="var(--night)" stroke-width="{0.8 + 3.2 * share:.2f}" '
+            f'opacity="{0.10 + 0.38 * share:.3f}">'
+            f'<title>{_esc(e.a)} and {_esc(e.b)}: {e.weight} scenes together</title></path>')
+    peak_scenes = max((node.scenes for node in seats), default=1) or 1
+    for node in seats:
+        x, y = point(index[node.name])
+        r = 4 + 7 * (node.scenes / peak_scenes) ** 0.5
+        # A cut vertex gets a ring rather than a colour, because on this page
+        # colour already means time of day and must not mean two things.
+        ring = (' stroke="var(--ink)" stroke-width="2"' if node.cut_vertex
+                else ' stroke="var(--surface)" stroke-width="1.5"')
+        out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="var(--night)"{ring}>'
+                   f'<title>{_esc(node.name)}: {node.scenes} scenes, plays against '
+                   f'{node.degree} of the cast'
+                   f'{", the only link between two groups" if node.cut_vertex else ""}'
+                   f'</title></circle>')
+        lx = cx + (radius + 14) * math.cos(2 * math.pi * index[node.name] / n - math.pi / 2)
+        ly = cy + (radius + 14) * math.sin(2 * math.pi * index[node.name] / n - math.pi / 2)
+        anchor = "middle" if abs(lx - cx) < 24 else ("start" if lx > cx else "end")
+        out.append(f'<text x="{lx:.1f}" y="{ly + 4:.1f}" text-anchor="{anchor}" font-size="11" '
+                   f'fill="var(--ink-2)" font-family="system-ui,sans-serif">'
+                   f'{_esc(node.name[:16])}</text>')
+    out.append("</svg>")
+    return "".join(out), dropped
+
+
 def _band_row(check) -> str:
     """A measurement on its band. The number is always printed next to it."""
     lo, hi = check.low, check.high
@@ -283,15 +347,57 @@ def render(metrics, genres=None, comparables=None, profile: str = "", top: int =
             f'conventionally expects.</p>' + "".join(_band_row(c) for c in comparables)
             + "</section>")
 
+    graph_svg, dropped = _network_graph(m.network)
+    network_html = ""
+    if graph_svg:
+        g = m.network
+        groups = [grp for grp in g.components if len(grp) > 1]
+        cuts = ", ".join(g.cut_vertices[:6]) or "none"
+        alone = ", ".join(g.isolated[:6]) or "none"
+        note = (f" Showing the {len(g.nodes) - dropped} most connected of {len(g.nodes)}."
+                if dropped else "")
+        network_html = f"""
+  <section class="card">
+    <h2>Who plays against whom</h2>
+    <p class="sub">A line joins two people who speak in the same scene, and it thickens with
+    the number of scenes. Seats are fixed by group and connectedness, so the same script
+    draws the same picture every time and only the connections move between drafts.{_esc(note)}</p>
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--night)"></span>Shares a scene</span>
+      <span><span class="swatch" style="background:var(--night);border:2px solid var(--ink)"></span>Only link between two groups</span>
+    </div>
+    <div class="scroll">{graph_svg}</div>
+    <div class="rows">
+      <div class="band"><span>connectedness</span>
+        <span style="color:var(--ink-2);font-size:12.5px">share of all possible pairings that
+        actually share a scene</span><span class="num">{g.density:.0%}</span></div>
+      <div class="band"><span>groups</span>
+        <span style="color:var(--ink-2);font-size:12.5px">sets of people connected to each
+        other and to nobody else</span><span class="num">{len(groups)}</span></div>
+      <div class="band"><span>only link</span>
+        <span style="color:var(--ink-2);font-size:12.5px">{_esc(cuts)}</span>
+        <span class="num">{len(g.cut_vertices)}</span></div>
+      <div class="band"><span>never in a room</span>
+        <span style="color:var(--ink-2);font-size:12.5px">{_esc(alone)}</span>
+        <span class="num">{len(g.isolated)}</span></div>
+    </div>
+  </section>"""
+
     signal_rows = "".join(
         f'<tr><td>{_esc(k.replace("_", " "))}</td><td class="n">{v:g}</td></tr>'
         for k, v in (m.signals.as_dict().items() if m.signals else []))
+    degree = {node.name: node for node in (m.network.nodes if m.network else [])}
     cast_table = "".join(
-        f"<tr><td>{_esc(c.name)}</td><td class=\"n\">{c.dialogue_lines}</td>"
+        f"<tr><td>{_esc(c.name)}</td><td>{_esc(c.age_band or '-')}</td>"
+        f"<td>{_esc('-' if c.pronoun == 'unspecified' else c.pronoun)}</td>"
+        f"<td>{_esc(c.role or '-')}</td>"
+        f"<td class=\"n\">{c.dialogue_lines}</td>"
         f"<td class=\"n\">{c.words}</td><td class=\"n\">{len(c.scenes)}</td>"
         f"<td class=\"n\">{c.present_pages:.1f}</td><td class=\"n\">{c.speaking_share:.1%}</td>"
-        f"<td class=\"n\">{c.first_scene + 1}</td><td class=\"n\">{c.last_scene + 1}</td>"
-        f"<td class=\"n\">{c.longest_absence}</td></tr>"
+        f"<td class=\"n\">{c.page_first:g}-{c.page_last:g}</td>"
+        f"<td class=\"n\">{degree[c.name].degree if c.name in degree else 0}</td>"
+        f"<td class=\"n\">{c.longest_absence}</td>"
+        f"<td>{_esc(c.timeline[:40])}</td></tr>"
         for c in m.characters)
     loc_table = "".join(
         f"<tr><td>{_esc(loc.name)}</td><td class=\"n\">{loc.eighths}</td>"
@@ -358,6 +464,8 @@ def render(metrics, genres=None, comparables=None, profile: str = "", top: int =
     <div class="scroll">{_braid(m.characters, m.scene_count)}</div>
   </section>
 
+  {network_html}
+
   {band_html}
   {genre_html}
 
@@ -365,9 +473,13 @@ def render(metrics, genres=None, comparables=None, profile: str = "", top: int =
     <h2>Everything, as a table</h2>
     <p class="sub">The same data the charts hold, for reading and for copying out.</p>
     <details open><summary>Cast ({len(m.characters)})</summary>
+      <p class="sub">Age, pronoun, and role are read back from what the script writes down,
+      never guessed from a name. A dash means the page does not say. Plays against is how
+      many of the rest of the cast this character shares a scene with.</p>
       <div class="scroll"><table>
-        <thead><tr><th>Character</th><th>Lines</th><th>Words</th><th>Scenes</th>
-        <th>Pages</th><th>Share</th><th>First</th><th>Last</th><th>Longest gap</th></tr></thead>
+        <thead><tr><th>Character</th><th>Age</th><th>Pronoun</th><th>Role</th><th>Lines</th>
+        <th>Words</th><th>Scenes</th><th>Pages</th><th>Share</th><th>On pages</th>
+        <th>Plays against</th><th>Longest gap</th><th>Scene numbers</th></tr></thead>
         <tbody>{cast_table}</tbody></table></div>
     </details>
     <details><summary>Locations ({len(m.locations)})</summary>

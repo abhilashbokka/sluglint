@@ -25,7 +25,11 @@ TRANSITION_RE = re.compile(
 # and a cue whose extension survives normalisation becomes a second character
 # in every registry, which then reads as name drift on a real script.
 EXTENSION_RE = re.compile(
-    r"\s*\((V\.?O\.?|O\.?S\.?|O\.?C\.?|CONT['\u2019]?D|VOICE ?OVER|OFF ?SCREEN|OFF|PRE-?LAP|"
+    # V/O and O/S are as common in the wild as V.O. and O.S., and a cue whose
+    # extension is not recognised carries it into the character's name, which
+    # puts the same person in the registry twice.
+    r"\s*\((V\.?O\.?|V\s*/\s*O|O\.?S\.?|O\s*/\s*S|O\.?C\.?|O\s*/\s*C|"
+    r"CONT['\u2019]?D|VOICE ?OVER|OFF ?SCREEN|OFF|PRE-?LAP|"
     r"FILTERED|SUBTITLED|INTO PHONE|ON PHONE)\)\s*",
     re.IGNORECASE,
 )

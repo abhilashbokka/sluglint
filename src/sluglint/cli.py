@@ -4,9 +4,14 @@
   sluglint diff    OLD NEW [--profile P] [--llm] [--rules PATH]
   sluglint rules   [--profile P] [--tier N] [--check] [--rules PATH]
   sluglint stats   SCRIPT [--profile P] [--json OUT] [--html OUT]
+  sluglint logline SCRIPT [--n 3] [--refresh] [--json OUT]
   sluglint convert SCRIPT.pdf [--out FILE]
 
 SCRIPT may be Fountain text or a PDF; the ingester picks the reader.
+
+A `.sluglint.yaml` beside the script (or anywhere above it) selects the profile
+and turns rules off, re-grades them, or retunes their thresholds. `--config`
+points at one explicitly; `--no-config` ignores whatever is found.
 
 Exit codes: 0 clean or warnings only, 1 at least one error, 2 bad usage.
 That makes `sluglint lint` usable as a pre-commit or CI gate on a script repo.
@@ -14,10 +19,13 @@ That makes `sluglint lint` usable as a pre-commit or CI gate on a script repo.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
+from . import config as configmod
 from . import diff as diffmod
+from . import logline as loglinemod
 from . import metrics as metricsmod
 from . import report
 from .ingest import load_script
@@ -45,6 +53,20 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--profile", default=None,
                        help="script profile (see `sluglint rules --help`)")
     parser.add_argument("--rules", type=Path, default=None, help="path to an alternate rulebook")
+    parser.add_argument("--config", type=Path, default=None,
+                        help="path to a .sluglint.yaml (default: search upward from the script)")
+    parser.add_argument("--no-config", action="store_true",
+                        help="ignore any .sluglint.yaml that would otherwise be found")
+
+
+def _resolve_config(args) -> configmod.Config:
+    """Explicit --config beats discovery; --no-config beats both."""
+    if getattr(args, "no_config", False):
+        return configmod.Config()
+    if getattr(args, "config", None):
+        return configmod.load(args.config)
+    start = getattr(args, "script", None) or getattr(args, "old", None) or Path.cwd()
+    return configmod.discover(start)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -77,6 +99,12 @@ def main(argv: list[str] | None = None) -> int:
     ps.add_argument("--top", type=int, default=12, help="rows per table (default 12)")
     _add_common(ps)
 
+    pg = sub.add_parser("logline", help="GENERATED synopsis and candidate loglines (needs a key)")
+    pg.add_argument("script", type=Path)
+    pg.add_argument("--n", type=int, default=3, help="how many logline versions (default 3)")
+    pg.add_argument("--refresh", action="store_true", help="ignore the cache and regenerate")
+    pg.add_argument("--json", type=Path, default=None, help="also write the summary here")
+
     pc = sub.add_parser("convert", help="show the Fountain text recovered from a PDF")
     pc.add_argument("script", type=Path)
     pc.add_argument("--out", type=Path, default=None, help="write it here instead of stdout")
@@ -98,13 +126,41 @@ def main(argv: list[str] | None = None) -> int:
             print(result.fountain)
         return 0
 
-    book = load_rulebook(args.rules)
+    if args.cmd == "logline":
+        try:
+            script, _ = load_script(args.script)
+        except RuntimeError as exc:
+            print(exc, file=sys.stderr)
+            return 2
+        summary, notices = loglinemod.generate(script, n=args.n, refresh=args.refresh)
+        if summary is None:
+            for note in notices:
+                print(f"note: {note}", file=sys.stderr)
+            return 2
+        print(loglinemod.render_console(summary))
+        for note in notices:
+            print(f"\nnote: {note}", file=sys.stderr)
+        if args.json:
+            args.json.write_text(
+                json.dumps(summary.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+            print(f"\nJSON written to {args.json}")
+        return 0
+
     try:
-        rules = book.for_profile(args.profile)
+        cfg = _resolve_config(args)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+    book = cfg.apply(load_rulebook(args.rules or cfg.rulebook))
+    profile_arg = args.profile or cfg.profile
+    try:
+        rules = book.for_profile(profile_arg)
     except KeyError as exc:
         print(exc, file=sys.stderr)
         return 2
-    profile = args.profile or book.default_profile
+    profile = profile_arg or book.default_profile
+    if summary := cfg.summary():
+        print(f"config: {summary}", file=sys.stderr)
 
     if args.cmd == "lint":
         try:
@@ -113,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
             print(exc, file=sys.stderr)
             return 2
         findings, notices = run_lint(script, rules, args.llm, profile)
+        findings = cfg.filter(findings)
         print(report.render_console(script, findings, ingest_notes + notices, profile=profile))
         if args.json:
             args.json.write_text(report.to_json(script, findings, profile=profile),
@@ -151,6 +208,7 @@ def main(argv: list[str] | None = None) -> int:
         (old_s, _), (new_s, _) = load_script(args.old), load_script(args.new)
         old_f, _ = run_lint(old_s, rules, args.llm, profile)
         new_f, _ = run_lint(new_s, rules, args.llm, profile)
+        old_f, new_f = cfg.filter(old_f), cfg.filter(new_f)
         print(report.render_diff_console(diffmod.diff_drafts(old_s, new_s, old_f, new_f)))
         return 0
 

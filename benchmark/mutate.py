@@ -190,10 +190,14 @@ def wall_of_text(text: str, rng: random.Random) -> Mutation | None:
     if not actions:
         return None
     i = rng.choice(actions)
-    filler = [lines[i]] * 5
+    # Ten lines, not six. Six is the 98th percentile of what actually gets
+    # shot, so injecting six was injecting something produced screenplays do
+    # routinely and then measuring recall against it. The rule's threshold and
+    # this mutator now share one definition, taken from the corpus.
+    filler = [lines[i]] * 9
     lines[i:i + 1] = filler
     return Mutation("F004", "wall_of_text", "\n".join(lines),
-                    "one action line repeated into a six-line block")
+                    "one action line repeated into a ten-line block")
 
 
 @mutator("F003", "leave a character cue with nothing under it")

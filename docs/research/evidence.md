@@ -21,7 +21,7 @@ changed, the old one is marked rather than deleted.
 | Rules carrying numeric params | **54** (30 tier 1, 24 tier 2) | `[r for r in book.rules if r.params]` |
 | Profiles | 4 | `us-spec-feature`, `tv-pilot`, `shooting-script`, `indian-regional` |
 | Rules resolving per profile | 139 / 142 / 139 / 142 | `sluglint rules --check --profile X` |
-| Tests | 219 | `pytest -q` |
+| Tests | 221 | `pytest -q` |
 | pylint | 10.00/10 | `pylint src/sluglint` |
 | Clean-fixture findings | 0 errors, 0 warnings, all profiles | `test_clean_script_stays_clean` |
 
@@ -67,7 +67,7 @@ verdict.
 | Findings, all readable (53 docs, 4,884 pp) | 12,671 |
 | Errors / warnings / suggestions, trusted | 283 / 3,003 / 4,159 |
 | Rules that fired | 93 of 150 |
-| Tier-3 rules that fired | **0 of 38** (sweep ran with the LLM tier off; still unmeasured) |
+| Tier-3 rules that fired | **0 of 38** in the sweep, which ran with the LLM tier off. Measured separately below. |
 | Top 12 rules' share of all findings | **60%** |
 
 An earlier run of this table reported 367 findings per 100 pages across 1,771
@@ -174,6 +174,56 @@ An earlier entry reported 11 thresholds against 214 films and put F013 at p87.
 Both the frame and that verdict were wrong: the GitHub contents API truncated
 the corpus listing at 1,000 of 1,276 archives, and F013 was measuring a scene
 number. Do not cite them.
+
+## Tier 3, first live run
+
+2026-08-07, `gemini-3.6-flash` via the OpenAI-compatible endpoint, on Parasite.
+The first time any tier-3 rule has seen a produced screenplay. Reproduce with
+`python benchmark/tier3_probe.py SCRIPT`.
+
+| Fact | Value |
+|---|---:|
+| Scenes | 158 |
+| Calls (6 scenes each) | 27, of which 8 died on quota |
+| Findings proposed | 40 |
+| **Kept after every filter** | **19 (48%)** |
+| Dropped, unknown rule id | 0 |
+| Dropped, scene out of window | 1 |
+| Dropped, below confidence | 0 |
+| **Dropped, evidence not in the text** | **20** |
+| Distinct tier-3 rules that fired | 5 of 38 (L003, L005, L006, L007, S001) |
+
+**The verbatim-evidence filter does all the work.** The model never cited a
+rule that does not exist and never left the scene window, then fabricated its
+quote in half the findings it proposed. The same pattern held on the 7-scene
+fixture: 3 of 3 drops were unquotable. One corpus, one model; the comparison
+across models is the experiment this makes possible.
+
+## Tier 3, scene window against recall
+
+Same script, same rubric, same model family. `SLUGLINT_SCENES_PER_CALL` is a
+hyperparameter nobody reports and it moves findings per script by 4x.
+
+| Scenes per call | Calls | Proposed | Kept | Rules fired |
+|---:|---:|---:|---:|---:|
+| 6 | 27 | 40 | **19** | 5 |
+| 40 | **4** | 7 | 5 | 3 |
+
+Per call the wide window looks better (1.25 kept against 0.70). Per script it
+is far worse. A judge asked to scan forty scenes against thirty-eight rules
+does not scan them as closely as one asked to scan six.
+
+## Tier 3 economics
+
+| Fact | Value |
+|---|---|
+| Rubric, all 38 rules | about 3,700 tokens, sent on every call |
+| Input tokens per call | about 4,500 |
+| Calls per 130-scene feature | 22 |
+| Gemini free tier | **20 requests per day, per model**, measured from the quota error |
+| Models reachable on one Gemini key | 59, each with its own daily budget |
+| DeepSeek V4 Flash | about $0.02 per screenplay |
+| Claude Sonnet 5 | about $0.56 per screenplay |
 
 ## Containers
 

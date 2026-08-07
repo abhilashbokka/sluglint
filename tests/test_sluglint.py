@@ -1261,6 +1261,51 @@ def test_a_key_can_live_in_a_file_instead_of_the_environment(tmp_path, monkeypat
     assert findings == [] and any("SLUGLINT_LLM_API_KEY" in n for n in notices)
 
 
+def test_a_per_day_quota_stops_the_run_instead_of_retrying_it(monkeypatch):
+    """A per-minute limit is worth waiting out. A per-day one is not.
+
+    Retrying a spent daily budget burned twenty minutes of wall clock on calls
+    that could not succeed, across four scripts that produced nothing. Google
+    reports it as a JSON array wrapping an error whose details carry the quota
+    id, which is neither a retry-after header nor a bare object."""
+    import io
+    import urllib.error
+
+    from sluglint.lint import tier3_llm
+
+    body = json.dumps([{"error": {"code": 429, "details": [
+        {"@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": [
+            {"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+             "quotaValue": "20"}]},
+        {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "36s"},
+    ]}}]).encode()
+
+    def spent(*a, **k):
+        raise urllib.error.HTTPError("u", 429, "Too Many Requests", {},
+                                     io.BytesIO(body))
+
+    rules = [r for r in load_rulebook().rules if r.tier == 3][:1]
+    # Several chunks, so a run that kept going would be visible as extra calls.
+    script = parse_file(V1)
+    assert len(list(tier3_llm._chunks(script))) > 1
+    monkeypatch.setenv("SLUGLINT_LLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("SLUGLINT_LLM_API_KEY", "test")
+    monkeypatch.delenv("SLUGLINT_LLM_API_KEY_FILE", raising=False)
+    monkeypatch.setattr(tier3_llm, "_openai_compatible", spent)
+
+    stats = tier3_llm.FilterStats()
+    findings, notices = tier3_llm.run(script, rules, stats=stats)
+    assert findings == []
+    assert stats.calls == 0, "the aborted call should not be counted as made"
+    assert any("per-day quota" in n for n in notices)
+
+    # A per-minute limit carries no PerDay quota id, so it is retried instead.
+    minute = json.dumps([{"error": {"code": 429, "details": [
+        {"violations": [{"quotaId": "GenerateRequestsPerMinute-FreeTier"}]}]}}]).encode()
+    err = urllib.error.HTTPError("u", 429, "slow down", {}, io.BytesIO(minute))
+    assert tier3_llm._quota_detail(err) == (0.0, False)
+
+
 def test_the_throttle_paces_calls_to_a_requests_per_minute_budget():
     from sluglint.lint import tier3_llm
     assert tier3_llm._Throttle(0).gap == 0.0          # unset is a no-op

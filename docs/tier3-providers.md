@@ -141,7 +141,7 @@ tokens):
 |---|---|---|
 | Groq | 30 RPM, 1,000 RPD, 12k TPM | Fits, paced by tokens: about 12 minutes per feature |
 | Cerebras | 30 RPM, 14,400 RPD, 1M TPD | Fits on requests, **but see the context cap below** |
-| Google AI Studio | per-project, check your console | Fits, licence permitting |
+| Google AI Studio | **20 requests per day, per model**, measured | One script per model per day |
 | OpenRouter unfunded | 50 RPD | Two features per day |
 
 **Cerebras caps free-tier context at 8,192 tokens.** A call is 4,500 tokens of
@@ -150,9 +150,77 @@ down to about 3,000 and it is still tight. Lower `SLUGLINT_SCENES_PER_CALL` to
 3 and it fits with room, at the cost of doubling the call count and paying for
 the rubric twice as often.
 
+**Gemini's free tier is 20 requests per day per model.** Measured rather than
+looked up: Google stopped publishing free-tier limits and now assigns them per
+project, so the only way to learn one is the quota error, which names it
+(`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, `quotaValue: 20`). A
+158-scene feature needs 27 calls, so one screenplay does not fit in one model's
+daily budget. The limit is per MODEL and 59 are reachable, so rotating models is
+the free route: `gemini-3.5-flash`, `gemini-3.1-flash-lite`, `gemini-2.5-flash`
+and the rest each carry their own budget. Check yours at
+<https://aistudio.google.com/rate-limit>.
+
+A per-day quota now aborts the run instead of being retried. The first run of
+this spent twenty minutes grinding through four more scripts producing nothing
+but 429s, because the retry logic could not tell a per-minute limit from a
+per-day one. Google reports the difference in the quota id, inside a JSON array
+wrapping the error, and carries neither a `retry-after` header nor a bare
+object; both shapes are now read.
+
 Numbers on free tiers move. Every one above should be checked in the
 provider's own console before a long run; the code does not depend on any of
 them.
+
+## Measured, on real screenplays
+
+First live run, 2026-08-07, `gemini-3.6-flash` against Parasite. This is the
+first time any of the 38 tier-3 rules has seen a produced screenplay.
+
+| | |
+|---|---:|
+| Scenes | 158 |
+| Calls made | 27, of which 8 died on quota |
+| Findings proposed | 40 |
+| **Kept after every filter** | **19 (48%)** |
+| Dropped: unknown rule | 0 |
+| Dropped: out of window | 1 |
+| Dropped: low confidence | 0 |
+| **Dropped: evidence not in the text** | **20** |
+
+**One filter does all the work.** The model stayed inside the rubric and inside
+the scene window without exception, and then fabricated its quote in half the
+findings it proposed. Nothing was rejected for citing a rule that does not
+exist or a scene it was not shown. On a 7-scene fixture the same pattern held:
+3 of 3 drops were unquotable.
+
+That is worth stating precisely because it inverts the intuition the filters
+were built on. The cheap syntactic checks (known rule id, in-window scene
+index) cost nothing and catch nothing. The verbatim-evidence check is the whole
+defence, and removing it would roughly double the finding count with fabricated
+quotes.
+
+The 19 that survived are sound. `S001` on "Yon-Kyo is freaked out of her mind"
+and "She's unaware that --", `L006` on "It's rather poignant.", `L005` on
+"Ki-Woo begins to step out". Each quotes the page and points at a line, which
+is the scope boundary in the root `CLAUDE.md` rule 10.
+
+## Scene window trades cost against recall, and not linearly
+
+`SLUGLINT_SCENES_PER_CALL` is a hidden hyperparameter and it matters more than
+it looks. Same script, same rubric, two windows:
+
+| Scenes per call | Calls | Proposed | Kept | Rules that fired |
+|---:|---:|---:|---:|---:|
+| 6 | 27 | 40 | **19** | 5 |
+| 40 | **4** | 7 | 5 | 3 |
+
+Widening the window is 6.8 times cheaper in requests and finds a quarter as
+much. Per call the wide window looks better (1.25 kept against 0.70); per
+script it is far worse, because a judge asked to scan forty scenes against
+thirty-eight rules does not scan them as closely as one asked to scan six.
+
+The practical consequence is that the free tier cannot buy its way out of a
+quota by chunking wider, and the honest default stays at 6.
 
 ## The measurement this unlocks
 

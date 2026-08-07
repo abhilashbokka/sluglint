@@ -257,13 +257,53 @@ def _openai_compatible(base_url: str, api_key: str, model: str, *,
     return data["choices"][0]["message"]["content"] or ""
 
 
-def _retry_after(err: urllib.error.HTTPError) -> float:
-    """Seconds a 429 asked us to wait, capped so a bad header cannot hang a run."""
-    raw = err.headers.get("retry-after", "") if err.headers else ""
+class QuotaExhausted(Exception):
+    """A budget that will not come back before the run ends.
+
+    A per-minute limit is worth waiting out. A per-day one is not: retrying it
+    burns wall-clock on calls that cannot succeed, and the run that found this
+    spent twenty minutes grinding through four more scripts producing nothing
+    but 429s. Told apart, the second aborts the whole run.
+    """
+
+
+def _quota_detail(err: urllib.error.HTTPError) -> tuple[float, bool]:
+    """-> (seconds to wait, whether the budget is a daily one).
+
+    Providers disagree about where they put this. A `retry-after` header is the
+    standard; Google sends neither that nor a bare object, but a JSON ARRAY
+    wrapping an error whose `details` carry a RetryInfo and a QuotaFailure. Both
+    shapes are read, and anything unrecognised falls back to a short wait.
+    """
+    wait = 0.0
+    header = err.headers.get("retry-after", "") if err.headers else ""
     try:
-        return min(float(raw), 120.0)
+        wait = min(float(header), 120.0)
     except (TypeError, ValueError):
-        return 0.0
+        pass
+    try:
+        body = json.loads(err.read())
+    except Exception:                                       # noqa: BLE001
+        return wait, False
+    if isinstance(body, list):
+        body = body[0] if body else {}
+    error = body.get("error", {}) if isinstance(body, dict) else {}
+    daily = False
+    for detail in error.get("details", []):
+        if not isinstance(detail, dict):
+            continue
+        if raw := detail.get("retryDelay"):
+            try:
+                wait = max(wait, min(float(str(raw).rstrip("s")), 120.0))
+            except ValueError:
+                pass
+        for violation in detail.get("violations", []):
+            quota_id = str(violation.get("quotaId", ""))
+            # "GenerateRequestsPerDayPerProjectPerModel-FreeTier" is the one
+            # that ends a run; "PerMinute" is the one worth sleeping through.
+            if "PerDay" in quota_id:
+                daily = True
+    return wait, daily
 
 
 def _post_with_retry(call, throttle: _Throttle) -> tuple[str, str]:
@@ -278,10 +318,16 @@ def _post_with_retry(call, throttle: _Throttle) -> tuple[str, str]:
         try:
             return call(), ""
         except urllib.error.HTTPError as err:
-            if err.code != 429 or attempt == MAX_RETRIES - 1:
+            if err.code != 429:
                 detail = err.read().decode("utf-8", "replace")[:200] if err.fp else ""
                 return "", f"HTTP {err.code} {detail}"
-            time.sleep(_retry_after(err) or 2.0 * (attempt + 1))
+            wait, daily = _quota_detail(err)
+            if daily:
+                raise QuotaExhausted(
+                    "the provider's per-day quota for this model is spent") from err
+            if attempt == MAX_RETRIES - 1:
+                return "", "rate limited after retries"
+            time.sleep(wait or 2.0 * (attempt + 1))
         except Exception as exc:                        # noqa: BLE001
             return "", str(exc)
     return "", "rate limited"
@@ -396,7 +442,17 @@ def run(script: Script, rules: list[Rule], *, model: str = DEFAULT_MODEL,
         user = (f"SCRIPT: {script.title or script.path}\nSPEAKING CHARACTERS: {characters}\n\n"
                 f"RULES TO APPLY:\n{rubric}\n\nTEXT TO LINT:\n{body}")
         tally.calls += 1
-        raw_text, error = send(SYSTEM_PROMPT, user)
+        try:
+            raw_text, error = send(SYSTEM_PROMPT, user)
+        except QuotaExhausted as exc:
+            # Stop the whole document rather than asking again for every
+            # remaining chunk. What was judged before this point still counts,
+            # and the notice says how far it got.
+            tally.calls -= 1
+            notices.append(
+                f"Tier 3 stopped at scene {min(scene_indices)} of "
+                f"{len(script.scenes)}: {exc}.")
+            break
         if error:
             tally.failed_calls += 1
             notices.append(f"Tier 3 call failed for scenes {sorted(scene_indices)}: {error}")

@@ -302,9 +302,18 @@ def _key_from_file(var: str) -> str:
         return ""
     try:
         with open(os.path.expanduser(path), encoding="utf-8") as fh:
-            return fh.readline().strip()
+            line = fh.readline().strip()
     except OSError:
         return ""
+    # A key copied out of a shell snippet arrives as NAME="value". Both the
+    # assignment and the quotes are tolerated, because the alternative is a
+    # 401 whose message says nothing about a stray quotation mark.
+    name, sep, rest = line.partition("=")
+    if sep and name.replace("_", "").isalnum() and name.upper() == name:
+        line = rest.strip()
+    if len(line) >= 2 and line[0] == line[-1] and line[0] in "\"'":
+        line = line[1:-1].strip()
+    return line
 
 
 def _describe_provider() -> tuple[str, str, str]:

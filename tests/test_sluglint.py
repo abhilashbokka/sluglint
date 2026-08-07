@@ -1244,6 +1244,17 @@ def test_a_key_can_live_in_a_file_instead_of_the_environment(tmp_path, monkeypat
     assert seen["key"] == "secret-token"
     assert not any("skipped" in n for n in notices)
 
+    # A key copied out of a shell snippet keeps its quotes and its assignment.
+    # Both are tolerated, because the alternative is a 401 that says nothing
+    # about a stray quotation mark.
+    for written in ('"secret-token"', "'secret-token'",
+                    'SLUGLINT_LLM_API_KEY="secret-token"',
+                    "GEMINI_API_KEY=secret-token"):
+        key_file.write_text(written + "\n")
+        seen.clear()
+        tier3_llm.run(parse_text("INT. BAR - DAY\n\nHe waits.\n"), rules)
+        assert seen["key"] == "secret-token", written
+
     # A path that is not there reports a missing key rather than crashing.
     monkeypatch.setenv("SLUGLINT_LLM_API_KEY_FILE", str(tmp_path / "nope.key"))
     findings, notices = tier3_llm.run(parse_text("INT. BAR - DAY\n\nHe waits.\n"), rules)

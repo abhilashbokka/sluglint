@@ -245,6 +245,63 @@ the current design suits them. The 12 document-scale rules need the whole
 document, or retrieval over it, and no amount of rubric tuning inside a window
 will reach them.
 
+## What the redesign changed, measured
+
+Three changes shipped together after the first run: every line carries an id
+and a finding must cite one AND quote it, the schema asks for a row per scene
+instead of a flat array, and the 14 document-scale rules get their own pass
+over the whole script.
+
+Whiplash, 117 scenes, before and after. Not the same model, so read the shape
+rather than the absolute counts.
+
+| | Before | After |
+|---|---:|---:|
+| Proposed | 186 | 118 |
+| **Kept** | 76 (41%) | **108 (92%)** |
+| Out of window | 67 | 3 |
+| Not quotable | 0 | 2 |
+| Misattributed | 37 | 4 |
+| **Scene coverage** | 49% | **86%** |
+| Rules that fired | 4 | 7 |
+
+**Two thirds of the first run's rejections were the filter's fault, not the
+model's.** Both are worth naming because both are easy to ship without
+noticing.
+
+*Out of window, 67.* The schema asked the judge for a scene index. A judge
+shown scenes 6 to 11 numbers them 0 to 5, so its indices were not the
+document's and correct findings were thrown away. The line id is unambiguous,
+the table of lines is chunk-scoped, so membership in that table IS the window
+check. The scene is now derived from the line rather than asked for.
+
+*Misattributed, 37.* A PDF-ingested script holds one PRINTED line per element,
+median 35 characters, so a sentence spans three of them. The judge quoted the
+sentence and cited the line it starts on, which is right. Requiring the quote
+to fit inside one element rejected it. The quote is now checked against the
+cited line and the few after it.
+
+**The document pass works.** On the first two-pass run S025 fired on Whiplash,
+quoting "Metz -- get the fuck out.": a character built up across scenes and
+then gone. No scene window could have reached that, which was the point.
+
+## The volume problem arrived at tier 3 too
+
+Of the 108 findings kept, **90 are S001**, unfilmable interiority. Every one is
+correct: "She looks suddenly lonely", "Has the eyes of a former dreamer", "It's
+clear what that means". The rule is right about each line and wrong about the
+document, because Whiplash's writer uses interiority as a house style and one
+line of feedback about the habit is useful where ninety is a reason to stop
+reading the tool.
+
+That is the same defect the corpus sweep found in F049, F011, and F002 and
+fixed, and it arrived at tier 3 untouched because tier 3 had never run. Hard
+rule 4 of the root `CLAUDE.md` already prescribes the answer, and
+[report-model.md](report-model.md) already specifies it: report a
+document-scale habit once with a count and one example. The grouping lives in
+the report layer and is still unbuilt, so it is the next thing tier 3 needs,
+ahead of any further prompt work.
+
 ## Why line-id evidence is not the obvious win
 
 An appealing fix for the fabricated quotes is to number every line and have the

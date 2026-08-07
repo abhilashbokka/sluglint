@@ -7,7 +7,7 @@ severity, a line number, a source, and a suggested fix. It never offers an
 opinion about whether your story is good.
 
 ![Python](https://img.shields.io/badge/python-3.10+-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-221%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-223%20passing-2ea44f)
 ![Rulebook](https://img.shields.io/badge/rulebook-150%20rules%20as%20data-E8A33D)
 ![Benchmark](https://img.shields.io/badge/injected%20defect%20recall-97%25-2ea44f)
 ![Lint](https://img.shields.io/badge/pylint-10.00%2F10-2ea44f)
@@ -85,7 +85,7 @@ sluglint diff draft1.fountain draft2.fountain    # what did I actually fix?
 sluglint stats script.pdf --html out.html         # cast, sets, schedule load
 sluglint convert script.pdf                      # see what we think the PDF says
 
-pytest -q                                        # 221 tests
+pytest -q                                        # 223 tests
 python benchmark/run.py                          # regenerate the numbers below
 ```
 
@@ -509,7 +509,7 @@ src/sluglint/
   cli.py                       lint | stats | diff | rules | convert | logline
 benchmark/                     fault injection, measured recall, draft drift
 examples/                      one clean fixture, one per profile, a v1-to-v2 pair
-tests/                         221 tests
+tests/                         223 tests
 docs/                          market, business model, script licensing,
                                corpus sweep, OCR design, report model
 docs/research/                 paper-idea tracker and the evidence ledger
@@ -520,7 +520,7 @@ CHANGELOG.md                   what changed and why
 
 ## Roadmap
 
-- [x] **v0.1** three-tier engine, 150-rule rulebook, 4 profiles, draft diffing, CLI, 221 tests, fault-injection benchmark
+- [x] **v0.1** three-tier engine, 150-rule rulebook, 4 profiles, draft diffing, CLI, 223 tests, fault-injection benchmark
 - [x] **PDF ingestion** by margin geometry, feeding the same script model ([docs/pdf-ingestion.md](docs/pdf-ingestion.md))
 - [ ] **Run tier 3 on real scripts.** All 38 tier-3 rules are silent across the
       49-document sweep, because it ran with the LLM tier off. A quarter of the

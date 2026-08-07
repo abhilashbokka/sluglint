@@ -41,8 +41,18 @@ def run_lint(script: Script, rules: list[Rule], use_llm: bool,
     findings += run_rules(script, rules_by_tier(rules, 2))
     notices: list[str] = []
     if use_llm:
-        llm_findings, notices = tier3_llm.run(script, rules_by_tier(rules, 3), profile=profile)
+        # Two request shapes, because 14 of the 38 tier-3 rules ask whether the
+        # script ever comes back to something and a scene window cannot answer
+        # that. The rulebook says which is which; see `Rule.scope`.
+        tier3 = rules_by_tier(rules, 3)
+        windowed = [r for r in tier3 if r.scope != "document"]
+        whole = [r for r in tier3 if r.scope == "document"]
+        llm_findings, notices = tier3_llm.run(script, windowed, profile=profile)
         findings += llm_findings
+        doc_findings, doc_notices = tier3_llm.run_document_scale(
+            script, whole, profile=profile)
+        findings += doc_findings
+        notices += doc_notices
     else:
         n3 = len(rules_by_tier(rules, 3))
         notices.append(f"Tier 3 not requested ({n3} LLM rules available; pass --llm).")

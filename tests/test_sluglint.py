@@ -1161,49 +1161,121 @@ def test_tier3_filters_are_counted_so_their_drop_rate_is_measurable(monkeypatch)
     """Each judged item is attributed to exactly one filter, so the columns sum.
 
     The filters are the part of tier 3 worth defending and there was no number
-    behind them until this existed."""
+    behind them until this existed. Requiring BOTH a line id and a quote is
+    what separates the last two: a line id alone makes fabrication
+    inexpressible and misattribution invisible, and on Whiplash 37 of 186
+    proposals were the second kind."""
     from sluglint.lint import tier3_llm
     rules = [r for r in load_rulebook().rules if r.tier == 3][:1]
     rule_id = rules[0].id
-    # One chunk, so every proposal meets the same window and each rejection is
-    # attributable to one filter without arithmetic.
-    script = parse_text("INT. BAR - NIGHT\n\nA man waits by the window.\n")
+    script = parse_text("INT. BAR - NIGHT\n\nA man waits by the window.\n\n"
+                        "The barman polishes a glass.\n")
     assert len(list(tier3_llm._chunks(script))) == 1
-    quotable = "A man waits by the window."
+    body, table = tier3_llm._numbered(script.scenes)
+    assert "[L" in body                       # every line carries an id
+    waits = next(k for k, v in table.items() if v.startswith("A man waits"))
+    polishes = next(k for k, v in table.items() if v.startswith("The barman"))
+
+    def proposal(**kw):
+        base = {"rule_id": rule_id, "line_id": waits, "evidence": table[waits],
+                "message": "m", "suggestion": "s", "confidence": 0.9}
+        base.update(kw)
+        return base
 
     proposals = [
-        {"rule_id": "NOPE", "scene_index": 0, "evidence": "", "message": "m",
-         "suggestion": "s", "confidence": 0.9},                    # unknown rule
-        {"rule_id": rule_id, "scene_index": 9999, "evidence": "", "message": "m",
-         "suggestion": "s", "confidence": 0.9},                    # out of window
-        {"rule_id": rule_id, "scene_index": 0, "evidence": "", "message": "m",
-         "suggestion": "s", "confidence": 0.1},                    # low confidence
-        {"rule_id": rule_id, "scene_index": 0, "evidence": "never in the script",
-         "message": "m", "suggestion": "s", "confidence": 0.9},    # not quotable
-        {"rule_id": rule_id, "scene_index": 0, "evidence": quotable,
-         "message": "m", "suggestion": "s", "confidence": 0.9},    # survives
+        proposal(rule_id="NOPE"),                        # unknown rule
+        proposal(line_id=999999),                        # a line nobody was shown
+        proposal(confidence=0.1),                        # low confidence
+        proposal(evidence="never in this script"),       # quote is nowhere
+        # A real quote on the wrong line. The failure a line-id-only design
+        # would have accepted silently.
+        proposal(line_id=polishes, evidence=table[waits]),
+        proposal(),                                      # survives
     ]
     monkeypatch.setenv("SLUGLINT_LLM_BASE_URL", "https://example.invalid/v1")
     monkeypatch.setenv("SLUGLINT_LLM_API_KEY", "test")
-    monkeypatch.setattr(tier3_llm, "_openai_compatible",
-                        lambda *a, **k: json.dumps({"findings": proposals}))
+    monkeypatch.delenv("SLUGLINT_LLM_API_KEY_FILE", raising=False)
+    monkeypatch.setattr(tier3_llm, "_openai_compatible", lambda *a, **k: json.dumps(
+        {"scenes": [{"scene_index": 0, "findings": proposals}]}))
 
     stats = tier3_llm.FilterStats()
     findings, notices = tier3_llm.run(script, rules, stats=stats)
 
     assert stats.calls == 1 and stats.failed_calls == 0
-    assert stats.proposed == 5
+    assert stats.proposed == 6
     assert stats.accepted == len(findings) == 1
     assert stats.dropped_unknown_rule == 1
     assert stats.dropped_out_of_window == 1
     assert stats.dropped_low_confidence == 1
     assert stats.dropped_unquotable == 1
+    assert stats.dropped_misattributed == 1
     # The columns account for every proposal, which is what makes the drop
     # rate a measurement rather than an impression.
     assert (stats.dropped_unknown_rule + stats.dropped_out_of_window
             + stats.dropped_low_confidence + stats.dropped_unquotable
-            + stats.accepted) == stats.proposed
+            + stats.dropped_misattributed + stats.accepted) == stats.proposed
+    # The surviving finding points at the line it quoted, and the scene is
+    # derived from that line rather than taken from the judge.
+    assert findings[0].line_no == waits
+    assert findings[0].scene_index == 0
     assert any("dropped" in n for n in notices)
+
+
+def test_tier3_accepts_a_quote_that_ran_across_a_line_break(monkeypatch):
+    """A PDF holds one PRINTED line per element, so a sentence spans several.
+
+    A judge quotes the sentence and cites the line it starts on, which is
+    correct. Demanding the quote fit inside one element rejected 37 of 186
+    findings on Whiplash for being right."""
+    from sluglint.lint import tier3_llm
+    rules = [r for r in load_rulebook().rules if r.tier == 3][:1]
+    # Written the way ingest hands a PDF over: one printed line per element.
+    script = parse_text("INT. STUDIO - NIGHT\n\nA cavernous space. And in the\n"
+                        "center, a DRUM SET, seated at it,\n"
+                        "eyes zeroed on the roll, ANDREW.\n")
+    _, table = tier3_llm._numbered(script.scenes)
+    start = next(k for k, v in table.items() if v.startswith("A cavernous"))
+    spanning = "A cavernous space. And in the center, a DRUM SET"
+    assert spanning not in table[start]        # it does not fit on one line
+
+    monkeypatch.setenv("SLUGLINT_LLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("SLUGLINT_LLM_API_KEY", "test")
+    monkeypatch.delenv("SLUGLINT_LLM_API_KEY_FILE", raising=False)
+    monkeypatch.setattr(tier3_llm, "_openai_compatible", lambda *a, **k: json.dumps(
+        {"scenes": [{"scene_index": 0, "findings": [
+            {"rule_id": rules[0].id, "line_id": start, "evidence": spanning,
+             "message": "m", "suggestion": "s", "confidence": 0.9}]}]}))
+
+    stats = tier3_llm.FilterStats()
+    findings, _ = tier3_llm.run(script, rules, stats=stats)
+    assert stats.accepted == 1 and stats.dropped_misattributed == 0
+    assert findings[0].line_no == start
+
+
+def test_tier3_measures_whether_the_judge_answered_about_every_scene(monkeypatch):
+    """A judge shown forty scenes answered about six of them.
+
+    Widening the window from 6 scenes to 40 was 6.8x cheaper and found a
+    quarter as much, so the schema now asks for a row per scene and this
+    counts the rows that came back."""
+    from sluglint.lint import tier3_llm
+    rules = [r for r in load_rulebook().rules if r.tier == 3][:1]
+    script = parse_text("".join(f"INT. ROOM {i} - DAY\n\nSomebody waits.\n\n"
+                                for i in range(4)))
+    assert len(script.scenes) == 4
+    monkeypatch.setenv("SLUGLINT_LLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("SLUGLINT_LLM_API_KEY", "test")
+    monkeypatch.delenv("SLUGLINT_LLM_API_KEY_FILE", raising=False)
+    # The judge answers about two of the four scenes it was shown.
+    monkeypatch.setattr(tier3_llm, "_openai_compatible", lambda *a, **k: json.dumps(
+        {"scenes": [{"scene_index": 0, "findings": []},
+                    {"scene_index": 2, "findings": []}]}))
+
+    stats = tier3_llm.FilterStats()
+    tier3_llm.run(script, rules, stats=stats)
+    assert stats.scenes_expected == 4
+    assert stats.scenes_answered == 2
+    assert stats.coverage == 0.5
 
 
 def test_a_dead_provider_leaves_tiers_1_and_2_usable(monkeypatch):

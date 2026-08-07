@@ -25,7 +25,7 @@ the extras here (`pdfplumber`, `anthropic`) are the project's, not the machine's
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,pdf,llm,indic]"            # dev only: drop the extras
 
-pytest -q                                        # 221 tests, must stay green
+pytest -q                                        # 223 tests, must stay green
 ruff check . && pylint src/sluglint              # must stay clean (10.00/10)
 
 python -m sluglint.cli lint examples/the_last_train.fountain
@@ -93,7 +93,7 @@ not redistribute is one it may not hand to a trainer either. That is hard rule
 | `src/sluglint/cli.py` | `lint` / `stats` / `diff` / `rules` / `convert` / `logline`. |
 | `examples/` | `clean_pages` (must stay clean), one fixture per profile, the v1 to v2 diff pair. |
 | `benchmark/` | `run.py` injects known defects and measures recall. `local_report.py` lints a private corpus for the precision pass. `thresholds.py` measures every rulebook threshold against a corpus, per named container, and verifies each extractor against the shipped detector. `corpus/` and `local/` are both gitignored. |
-| `tests/` | 221 tests. Positive fixture per deterministic rule + clean-script gate. |
+| `tests/` | 223 tests. Positive fixture per deterministic rule + clean-script gate. |
 | `docs/` | Competitive landscape, product and business model, script licensing, the corpus sweep, the OCR design, the report model, the tier-3 provider matrix. |
 | `docs/research/` | Paper-idea tracker, one file per idea, plus `evidence.md`: every measured number with its provenance. Cite that file rather than restating a number. |
 

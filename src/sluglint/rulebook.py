@@ -35,6 +35,13 @@ class Rule:
     principle: str
     source: str = ""
     detect: str = ""
+    # Tier 3 only. What the judge has to see to answer the rule at all.
+    # `window` fits inside a handful of scenes; `document` asks whether the
+    # script ever comes back to something, which a six-scene window cannot
+    # answer no matter how the prompt is written. Measured: on Parasite all 5
+    # rules that fired were window scale and all 14 document-scale rules were
+    # silent, because they were unanswerable rather than unviolated.
+    scope: str = "window"
     params: dict = field(default_factory=dict)
     examples: list = field(default_factory=list)
     profiles: list[str] = field(default_factory=list)  # empty = applies to all
@@ -142,6 +149,7 @@ def load_rulebook(path: str | Path | None = None) -> Rulebook:
             category=raw.get("category", ""), severity=raw["severity"],
             principle=" ".join(str(raw.get("principle", "")).split()),
             source=raw.get("source", ""), detect=raw.get("detect", ""),
+            scope=raw.get("scope", "window"),
             params=raw.get("params", {}) or {}, examples=raw.get("examples", []) or [],
             profiles=list(raw.get("profiles", []) or []),
             profile_notes={k: " ".join(str(v).split())

@@ -88,8 +88,11 @@ class FilterStats:
     dropped_unknown_rule: int = 0
     dropped_out_of_window: int = 0
     dropped_low_confidence: int = 0
-    dropped_unquotable: int = 0
+    dropped_unquotable: int = 0       # the quote is nowhere in the text
+    dropped_misattributed: int = 0    # the quote is real, the cited line is not it
     accepted: int = 0
+    scenes_expected: int = 0
+    scenes_answered: int = 0
     model: str = ""
     provider: str = ""
     notes: list[str] = field(default_factory=list)
@@ -97,6 +100,13 @@ class FilterStats:
     @property
     def dropped(self) -> int:
         return self.proposed - self.accepted
+
+    @property
+    def coverage(self) -> float:
+        """Share of the scenes shown that the judge actually answered about."""
+        if not self.scenes_expected:
+            return 1.0
+        return self.scenes_answered / self.scenes_expected
 
     def summary(self) -> str:
         if not self.proposed:
@@ -109,49 +119,98 @@ class FilterStats:
                 f"[unknown rule {self.dropped_unknown_rule}, "
                 f"out of window {self.dropped_out_of_window}, "
                 f"low confidence {self.dropped_low_confidence}, "
-                f"not quotable {self.dropped_unquotable}].")
+                f"not quotable {self.dropped_unquotable}, "
+                f"misattributed {self.dropped_misattributed}]. "
+                f"Scene coverage {self.coverage:.0%}.")
 
 # The API validates responses against this, so a malformed judge reply is
 # impossible by construction. The hallucination filters below then police what
 # the shape cannot: whether the finding is actually grounded in the text.
+_FINDING = {
+    "type": "object",
+    "properties": {
+        "rule_id": {"type": "string"},
+        # Both, deliberately. A line id alone makes a fabricated quote
+        # inexpressible, which sounds like the fix and is not: a judge that
+        # wants to report something then cites the nearest plausible real
+        # line, and a measurable failure becomes an invisible one. Carrying
+        # the quote as well means fabrication fails the lookup and
+        # misattribution fails the comparison, and both stay countable.
+        "line_id": {"type": "integer",
+                    "description": "The [Lnnnn] id of the offending line."},
+        "evidence": {"type": "string",
+                     "description": "A short VERBATIM quote from that line."},
+        "message": {"type": "string"},
+        "suggestion": {"type": "string"},
+        "confidence": {"type": "number"},
+    },
+    "required": ["rule_id", "line_id", "evidence", "message", "suggestion",
+                 "confidence"],
+    "additionalProperties": False,
+}
+
+# The API validates responses against this, so a malformed judge reply is
+# impossible by construction. The hallucination filters below then police what
+# the shape cannot: whether the finding is actually grounded in the text.
+#
+# One entry per scene, including the scenes with nothing wrong. Asking for a
+# flat findings array let a judge shown forty scenes answer about six of them:
+# widening the window from 6 scenes to 40 was 6.8x cheaper and found a quarter
+# as much. A row per scene makes skipping visible, and `scenes_expected`
+# against `scenes_answered` measures it.
 FINDINGS_SCHEMA = {
     "type": "object",
     "properties": {
-        "findings": {
+        "scenes": {
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
-                    "rule_id": {"type": "string"},
                     "scene_index": {"type": "integer"},
-                    "evidence": {"type": "string",
-                                 "description": "A short VERBATIM quote from the provided text."},
-                    "message": {"type": "string"},
-                    "suggestion": {"type": "string"},
-                    "confidence": {"type": "number"},
+                    "findings": {"type": "array", "items": _FINDING},
                 },
-                "required": ["rule_id", "scene_index", "evidence", "message",
-                             "suggestion", "confidence"],
+                "required": ["scene_index", "findings"],
                 "additionalProperties": False,
             },
         }
     },
+    "required": ["scenes"],
+    "additionalProperties": False,
+}
+
+# The document pass has no scene rows: its rules are about the whole script,
+# so a finding names the scene it points at and nothing is enumerated.
+DOCUMENT_SCHEMA = {
+    "type": "object",
+    "properties": {"findings": {"type": "array", "items": _FINDING}},
     "required": ["findings"],
     "additionalProperties": False,
 }
 
-SYSTEM_PROMPT = """You are a screenplay lint engine, not a critic. You apply ONLY the \
-numbered rules provided, to the scene text provided. You never invent rules, never \
+_RULES_OF_ENGAGEMENT = """You are a screenplay lint engine, not a critic. You apply \
+ONLY the numbered rules provided, to the text provided. You never invent rules, never \
 comment on story quality outside the rules, and never flag stylistic choices the \
 rules permit (sentence fragments, CAPS on sounds/intros, invented proper nouns).
 
 Precision beats recall: if you are not confident a rule is violated, do not flag it.
 
-Return findings against the schema you have been given.
-- evidence MUST be a short VERBATIM quote from the provided text. A finding whose
-  evidence does not appear in the text will be discarded.
-- scene_index MUST be one of the provided scene indices.
-- confidence in [0,1]. Return an empty list if nothing violates the rules."""
+Every line you are shown carries an id in the form [Lnnnn].
+- line_id MUST be the number from the marker on the offending line. Never invent one.
+- evidence MUST be a short VERBATIM quote from THAT line. A finding whose quote does
+  not appear on the line it cites will be discarded.
+- confidence in [0,1]."""
+
+SYSTEM_PROMPT = _RULES_OF_ENGAGEMENT + """
+
+Return one entry per scene you were shown, in order, including scenes where you
+found nothing. A scene with no violations gets an empty findings array. Do not
+omit a scene."""
+
+DOCUMENT_PROMPT = _RULES_OF_ENGAGEMENT + """
+
+You are being shown the WHOLE script, because these rules ask whether it ever
+returns to something it introduced. Answer only from what is in front of you,
+and quote the line that introduced the thing you are reporting."""
 
 
 def _rubric(rules: list[Rule], profile: str = "") -> str:
@@ -172,34 +231,149 @@ def _chunks(script: Script):
         yield script.scenes[i:i + SCENES_PER_CALL]
 
 
-def _scene_block(scene) -> str:
-    return f"--- SCENE {scene.index} | {scene.heading} ---\n{scene.text}"
+def _parse_findings(text: str) -> tuple[list[dict], set[int]]:
+    """-> (findings, scene indices the judge answered about).
 
-
-def _parse_findings(text: str) -> list[dict]:
-    """Read the findings array out of a response.
-
-    Structured outputs make the happy path a plain json.loads. The bracket
-    scan is a fallback for a model set via SLUGLINT_MODEL that does not
-    support the schema contract. The engine degrades rather than crashes.
+    Structured outputs make the happy path a plain json.loads. The rest is a
+    fallback for a model set via SLUGLINT_MODEL that does not honour the schema
+    contract: the older flat `findings` array is still read, and so is a bare
+    array, so the engine degrades rather than crashes.
     """
     cleaned = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
+    data = None
     try:
         data = json.loads(cleaned)
-        if isinstance(data, dict):
-            return data.get("findings", []) or []
-        if isinstance(data, list):
-            return data
     except json.JSONDecodeError:
-        pass
-    start, end = cleaned.find("["), cleaned.rfind("]")
-    if start == -1 or end == -1:
-        return []
+        start, end = cleaned.find("["), cleaned.rfind("]")
+        if start != -1 and end != -1:
+            try:
+                data = json.loads(cleaned[start:end + 1])
+            except json.JSONDecodeError:
+                data = None
+    if isinstance(data, list):
+        return [x for x in data if isinstance(x, dict)], set()
+    if not isinstance(data, dict):
+        return [], set()
+    if isinstance(rows := data.get("scenes"), list):
+        out, answered = [], set()
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            if isinstance(idx := row.get("scene_index"), int):
+                answered.add(idx)
+            for item in row.get("findings") or []:
+                if isinstance(item, dict):
+                    # The scene row carries the index; a finding inherits it so
+                    # the window check downstream has something to check.
+                    item.setdefault("scene_index", row.get("scene_index"))
+                    out.append(item)
+        return out, answered
+    return [x for x in (data.get("findings") or []) if isinstance(x, dict)], set()
+
+
+def _numbered(scenes) -> tuple[str, dict[int, str]]:
+    """Scene text with an id on every line, and the table to resolve them.
+
+    The id is the source line number, so a finding resolves straight back to
+    the place in the file the writer would open.
+    """
+    lines, table = [], {}
+    for scene in scenes:
+        lines.append(f"--- SCENE {scene.index} | {scene.heading} ---")
+        for el in scene.elements:
+            body = el.text.strip()
+            if body:
+                table[el.line_no] = body
+                lines.append(f"[L{el.line_no:04d}] {body}")
+    return "\n".join(lines), table
+
+
+# ------------------------------------------------------------------- filters
+
+def _norm(text: str) -> str:
+    """Whitespace-folded lowercase, so a quote that crossed a line break matches."""
+    return " ".join(text.lower().split())
+
+
+def _cited_context(table: dict[int, str], line_id: int, span: int = 4) -> str:
+    """The cited line and the few after it, joined as they would read.
+
+    A PDF-ingested script holds one PRINTED line per element, median 35
+    characters, so a sentence runs across three of them. A judge quotes the
+    sentence and cites the line it starts on, which is the correct answer.
+    Demanding the quote fit inside one element rejected 37 of 186 findings on
+    Whiplash for being right.
+    """
+    keys = sorted(k for k in table if k >= line_id)[:span]
+    return _norm(" ".join(table[k] for k in keys))
+
+
+def _accept(item: dict, rule_map: dict, table: dict[int, str], *,
+            min_confidence: float, tally: FilterStats) -> Finding | None:
+    """One judged item through every filter, or None with a reason counted.
+
+    `table` holds exactly the lines this call was shown, so membership in it is
+    the window check. Asking the judge for a scene index instead rejected 67 of
+    186 findings on Whiplash, because a judge shown scenes 6 to 11 numbers them
+    0 to 5. The line id is unambiguous and the scene is derived from it.
+
+    Order matters only in that each rejection is attributed to exactly one
+    filter, so the columns sum to `proposed`.
+    """
+    tally.proposed += 1
+    rule = rule_map.get(str(item.get("rule_id", "")))
+    if rule is None:
+        tally.dropped_unknown_rule += 1
+        return None
     try:
-        data = json.loads(cleaned[start:end + 1])
-        return data if isinstance(data, list) else []
-    except json.JSONDecodeError:
-        return []
+        line_id = int(item.get("line_id", -1))
+    except (TypeError, ValueError):
+        line_id = -1
+    cited = table.get(line_id, "")
+    if not cited:
+        tally.dropped_out_of_window += 1
+        return None
+    try:
+        confidence = float(item.get("confidence", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    if confidence < min_confidence:
+        tally.dropped_low_confidence += 1
+        return None
+
+    evidence = _norm(str(item.get("evidence", "")))
+    if evidence and evidence not in _cited_context(table, line_id):
+        # Told apart because they are different failures and only one of them
+        # is the model inventing text. A line-id-only design would have made
+        # the second invisible, which is why the quote is required as well.
+        if evidence in _norm(" ".join(table[k] for k in sorted(table))):
+            tally.dropped_misattributed += 1
+        else:
+            tally.dropped_unquotable += 1
+        return None
+
+    tally.accepted += 1
+    return Finding(
+        rule_id=rule.id, rule_name=rule.name, severity=Severity(rule.severity),
+        message=str(item.get("message", rule.name)), line_no=line_id,
+        scene_index=None, evidence=str(item.get("evidence", "")).strip() or cited,
+        suggestion=str(item.get("suggestion", "")),
+        source=rule.source, tier=3, confidence=confidence,
+    )
+
+
+def _locate_finding(script: Script, finding: Finding) -> Finding:
+    """Derive the scene from the cited line, rather than asking for it.
+
+    A judge shown a window numbers the scenes in front of it from zero, so its
+    scene index is not the document's. The line id is, and the parser already
+    knows which scene each line belongs to.
+    """
+    for el in script.elements:
+        if el.line_no == finding.line_no:
+            finding.scene_index = el.scene_index
+            break
+    return finding
 
 
 # ------------------------------------------------------------------ providers
@@ -225,7 +399,8 @@ class _Throttle:
 
 
 def _openai_compatible(base_url: str, api_key: str, model: str, *,
-                       system: str, user: str, max_tokens: int) -> str:
+                       system: str, user: str, max_tokens: int,
+                       schema: dict) -> str:
     """One chat completion, asking for the findings schema where supported.
 
     Providers disagree about structured outputs: some honour a JSON schema,
@@ -244,7 +419,7 @@ def _openai_compatible(base_url: str, api_key: str, model: str, *,
         "response_format": {
             "type": "json_schema",
             "json_schema": {"name": "findings", "strict": True,
-                            "schema": FINDINGS_SCHEMA},
+                            "schema": schema},
         },
     }
     body = json.dumps(payload).encode()
@@ -377,6 +552,119 @@ def _describe_provider() -> tuple[str, str, str]:
     return "anthropic", "", key
 
 
+def _sender(base_url: str, api_key: str, model: str, throttle: _Throttle,
+            schema: dict):
+    """-> send(system, user) for whichever provider is configured.
+
+    One place that knows the difference between the two, so the windowed pass
+    and the document pass cannot drift apart in how they ask.
+    """
+    if base_url:
+        def send_http(system: str, user: str) -> tuple[str, str]:
+            return _post_with_retry(
+                lambda: _openai_compatible(base_url, api_key, model, system=system,
+                                           user=user, max_tokens=MAX_TOKENS,
+                                           schema=schema), throttle)
+        return send_http
+
+    import anthropic  # noqa: PLC0415
+    client = anthropic.Anthropic()
+
+    def send_sdk(system: str, user: str) -> tuple[str, str]:
+        def call() -> str:
+            resp = client.messages.create(
+                model=model,
+                max_tokens=MAX_TOKENS,
+                system=system,
+                # Thinking off: max_tokens caps thinking + output together, and
+                # a truncated findings array is worse than a shallower judgment.
+                thinking={"type": "disabled"},
+                output_config={
+                    "effort": "low",
+                    "format": {"type": "json_schema", "schema": schema},
+                },
+                messages=[{"role": "user", "content": user}],
+            )
+            return "".join(b.text for b in resp.content
+                           if getattr(b, "type", "") == "text")
+        return _post_with_retry(call, throttle)
+    return send_sdk
+
+
+def _document_body(script: Script) -> tuple[str, dict[int, str]]:
+    """The whole script, numbered, with the scene headings kept as landmarks."""
+    return _numbered(script.scenes)
+
+
+def run_document_scale(script: Script, rules: list[Rule], *,
+                       model: str = DEFAULT_MODEL, min_confidence: float = 0.6,
+                       profile: str = "", stats: FilterStats | None = None,
+                       ) -> tuple[list[Finding], list[str]]:
+    """Judge the rules a scene window cannot answer, against the whole script.
+
+    Fourteen of the 38 tier-3 rules ask whether the document ever returns to
+    something it introduced. On Parasite all fourteen were silent while every
+    rule that fired was window scale, and the reason is structural: a judge
+    shown scenes 12 to 17 cannot say whether a prop is paid off in scene 90.
+    The rule was unanswerable, not unviolated.
+
+    So this sends the script in one call. That is about 100k tokens for a
+    feature, which a 1M-context model takes and a small-context one cannot, so
+    an oversized script is reported as skipped rather than truncated. Truncating
+    would produce exactly the failure this function exists to remove.
+    """
+    notices: list[str] = []
+    tally = stats if stats is not None else FilterStats()
+    if not rules:
+        return [], notices
+
+    provider, base_url, api_key = _describe_provider()
+    tally.provider, tally.model = provider, model
+    if not api_key:
+        want = "SLUGLINT_LLM_API_KEY" if base_url else "ANTHROPIC_API_KEY"
+        return [], [f"Tier 3 document pass skipped ({len(rules)} rules): set {want}."]
+
+    body, table = _document_body(script)
+    budget = _env_int("SLUGLINT_DOC_CHAR_BUDGET", 900_000)
+    if len(body) > budget:
+        return [], [f"Tier 3 document pass skipped: the script is "
+                    f"{len(body):,} characters against a budget of {budget:,}. "
+                    f"These {len(rules)} rules need the whole document, so a "
+                    f"truncated one would answer the wrong question. Raise "
+                    f"SLUGLINT_DOC_CHAR_BUDGET on a large-context model."]
+
+    characters = ", ".join(sorted(script.character_registry())) or "none detected"
+    user = (f"SCRIPT: {script.title or script.path}\n"
+            f"SPEAKING CHARACTERS: {characters}\n"
+            f"SCENES: {len(script.scenes)}\n\n"
+            f"RULES TO APPLY:\n{_rubric(rules, profile)}\n\n"
+            f"WHOLE SCRIPT:\n{body}")
+
+    throttle = _Throttle(REQUESTS_PER_MINUTE)
+    send = _sender(base_url, api_key, model, throttle, DOCUMENT_SCHEMA)
+    tally.calls += 1
+    try:
+        raw_text, error = send(DOCUMENT_PROMPT, user)
+    except QuotaExhausted as exc:
+        tally.calls -= 1
+        return [], [f"Tier 3 document pass stopped: {exc}."]
+    if error:
+        tally.failed_calls += 1
+        return [], [f"Tier 3 document pass failed: {error}"]
+
+    rule_map = {r.id: r for r in rules}
+    items, _ = _parse_findings(raw_text)
+    findings = []
+    for item in items:
+        # No window: these rules are about the whole script by construction.
+        if (finding := _accept(item, rule_map, table,
+                               min_confidence=min_confidence,
+                               tally=tally)) is not None:
+            findings.append(_locate_finding(script, finding))
+    notices.append(tally.summary())
+    return findings, notices
+
+
 def run(script: Script, rules: list[Rule], *, model: str = DEFAULT_MODEL,
         min_confidence: float = 0.6, profile: str = "",
         stats: FilterStats | None = None) -> tuple[list[Finding], list[str]]:
@@ -398,38 +686,11 @@ def run(script: Script, rules: list[Rule], *, model: str = DEFAULT_MODEL,
                     f"or {want}_FILE pointing at a file that holds it."]
 
     throttle = _Throttle(REQUESTS_PER_MINUTE)
-    if base_url:
-        def send(system: str, user: str) -> tuple[str, str]:
-            return _post_with_retry(
-                lambda: _openai_compatible(base_url, api_key, model, system=system,
-                                           user=user, max_tokens=MAX_TOKENS), throttle)
-    else:
-        try:
-            import anthropic
-        except ImportError:
-            return [], ["Tier 3 skipped: `pip install anthropic`, or point "
-                        "SLUGLINT_LLM_BASE_URL at an OpenAI-compatible endpoint."]
-        client = anthropic.Anthropic()
-
-        def send(system: str, user: str) -> tuple[str, str]:
-            def call() -> str:
-                resp = client.messages.create(
-                    model=model,
-                    max_tokens=MAX_TOKENS,
-                    system=system,
-                    # Thinking off: max_tokens caps thinking + output together,
-                    # and a truncated findings array is worse than a shallower
-                    # judgment.
-                    thinking={"type": "disabled"},
-                    output_config={
-                        "effort": "low",
-                        "format": {"type": "json_schema", "schema": FINDINGS_SCHEMA},
-                    },
-                    messages=[{"role": "user", "content": user}],
-                )
-                return "".join(b.text for b in resp.content
-                               if getattr(b, "type", "") == "text")
-            return _post_with_retry(call, throttle)
+    try:
+        send = _sender(base_url, api_key, model, throttle, FINDINGS_SCHEMA)
+    except ImportError:
+        return [], ["Tier 3 skipped: `pip install anthropic`, or point "
+                    "SLUGLINT_LLM_BASE_URL at an OpenAI-compatible endpoint."]
 
     rule_map = {r.id: r for r in rules}
     characters = ", ".join(sorted(script.character_registry())) or "none detected"
@@ -438,7 +699,8 @@ def run(script: Script, rules: list[Rule], *, model: str = DEFAULT_MODEL,
 
     for chunk in _chunks(script):
         scene_indices = {s.index for s in chunk}
-        body = "\n\n".join(_scene_block(s) for s in chunk)
+        body, table = _numbered(chunk)
+        tally.scenes_expected += len(chunk)
         user = (f"SCRIPT: {script.title or script.path}\nSPEAKING CHARACTERS: {characters}\n\n"
                 f"RULES TO APPLY:\n{rubric}\n\nTEXT TO LINT:\n{body}")
         tally.calls += 1
@@ -458,48 +720,14 @@ def run(script: Script, rules: list[Rule], *, model: str = DEFAULT_MODEL,
             notices.append(f"Tier 3 call failed for scenes {sorted(scene_indices)}: {error}")
             continue
 
-        chunk_text_lower = body.lower()
-        for item in _parse_findings(raw_text):
-            tally.proposed += 1
-            rule = rule_map.get(item.get("rule_id", ""))
-            evidence = str(item.get("evidence", "")).strip()
-            try:
-                conf = float(item.get("confidence", 0.0) or 0.0)
-            except (TypeError, ValueError):
-                conf = 0.0
-            # Hallucination filters, counted in order so each rejection is
-            # attributed to exactly one of them and the columns sum.
-            if not rule:
-                tally.dropped_unknown_rule += 1
-                continue
-            if item.get("scene_index") not in scene_indices:
-                tally.dropped_out_of_window += 1
-                continue
-            if conf < min_confidence:
-                tally.dropped_low_confidence += 1
-                continue
-            if evidence and evidence.lower() not in chunk_text_lower:
-                tally.dropped_unquotable += 1
-                continue
-            tally.accepted += 1
-            findings.append(Finding(
-                rule_id=rule.id, rule_name=rule.name, severity=Severity(rule.severity),
-                message=str(item.get("message", rule.name)),
-                line_no=_locate(script, item["scene_index"], evidence),
-                scene_index=item["scene_index"], evidence=evidence,
-                suggestion=str(item.get("suggestion", "")), source=rule.source,
-                tier=3, confidence=conf,
-            ))
+        items, answered = _parse_findings(raw_text)
+        tally.scenes_answered += len(answered & scene_indices)
+
+        for item in items:
+            finding = _accept(item, rule_map, table,
+                              min_confidence=min_confidence, tally=tally)
+            if finding is not None:
+                findings.append(_locate_finding(script, finding))
 
     notices.append(tally.summary())
     return findings, notices
-
-
-def _locate(script: Script, scene_index: int, evidence: str) -> int | None:
-    if not evidence:
-        return None
-    needle = evidence.lower()[:60]
-    for el in script.elements:
-        if el.scene_index == scene_index and needle in el.text.lower():
-            return el.line_no
-    return None

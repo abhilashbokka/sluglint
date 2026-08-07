@@ -1004,6 +1004,7 @@ rules:
     tier: 3
     category: craft
     severity: warning
+    scope: window
     principle: >
       Action lines may only contain what a camera can photograph or a
       microphone can record. Thoughts, memories, backstory, and feelings that
@@ -1020,6 +1021,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Characters should not state their emotions, motives, or the subtext
       outright. Dialogue works when what is said sits at an angle to what is
@@ -1034,6 +1036,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Backstory and world information should be released only when the scene
       needs it, ideally inside conflict, and never as characters reciting
@@ -1048,6 +1051,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Enter each scene at the last possible moment and leave at the first;
       greetings, arrivals, and goodbyes that carry no conflict are dead
@@ -1062,6 +1066,7 @@ rules:
     tier: 3
     category: structure
     severity: suggestion
+    scope: document
     principle: >
       Across any sustained stretch, the protagonist should be making choices
       that cause the next scene, not merely receiving events. Watching things
@@ -1076,6 +1081,7 @@ rules:
     tier: 3
     category: structure
     severity: suggestion
+    scope: document
     principle: >
       Something must disrupt the protagonist's ordinary world within roughly
       the first ten to fifteen pages; if the status quo survives past that,
@@ -1087,6 +1093,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       Cover the cue names and you should still know who is speaking. If any
       two characters' lines could be swapped without loss, their voices are
@@ -1098,6 +1105,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       Every prop, detail, or aside the script spends words on creates an
       expectation of payoff. Flag conspicuous details that never return and
@@ -1109,6 +1117,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       A scene should end in a different state from the one it began in:
       someone learns something, loses something, or commits to something. A
@@ -1123,6 +1132,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Dialogue built as a run of questions answered directly is an interview,
       not a scene. Characters who want something deflect, change the subject,
@@ -1137,6 +1147,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       When a line describes an action the audience has just seen, the script
       is paying twice for the same beat. Trust the image.
@@ -1150,6 +1161,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       A fact the audience already has does not need restating in a later
       scene unless something about the restatement is new. Repetition without
@@ -1161,6 +1173,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       A long speech holds only when someone in the scene is trying to stop
       it. An uninterrupted monologue delivered to a silent listener is the
@@ -1172,6 +1185,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       A first appearance should give the reader one specific thing to hold
       onto: a behaviour, an object, a way of occupying the space. A name and
@@ -1186,6 +1200,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       People rarely use each other's names mid-conversation. Names sprinkled
       through dialogue are the writer reminding the reader who is speaking,
@@ -1200,6 +1215,7 @@ rules:
     tier: 3
     category: production
     severity: suggestion
+    scope: window
     principle: >
       Physical description should be limited to what the story actually
       requires. Detail beyond that closes casting doors for no dramatic
@@ -1211,6 +1227,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Action lines describe behaviour, not the reading of a line. Adverbs of
       delivery placed in action ("he says, bitterly") direct the actor from
@@ -1225,6 +1242,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Voice-over is a legitimate device when it says what the images cannot.
       When it narrates what is already on screen, it replaces the scene
@@ -1236,6 +1254,7 @@ rules:
     tier: 3
     category: structure
     severity: suggestion
+    scope: document
     profiles: [tv-pilot]
     principle: >
       An act break should land on a reversal, a revelation, or a decision
@@ -1248,6 +1267,7 @@ rules:
     tier: 3
     category: language
     severity: suggestion
+    scope: document
     profiles: [indian-regional]
     principle: >
       In a code-mixed script, how much a character switches languages is
@@ -1262,6 +1282,7 @@ rules:
     tier: 3
     category: language
     severity: warning
+    scope: window
     principle: >
       Action is written in present tense, always. Past-tense action lines
       break the convention that a screenplay describes what the audience is
@@ -1276,6 +1297,7 @@ rules:
     tier: 3
     category: language
     severity: warning
+    scope: window
     principle: >
       Flag probable misspellings and typos, but respect screenwriting style:
       sentence fragments, ALL-CAPS emphasis on sounds/props, and invented
@@ -1296,6 +1318,7 @@ rules:
     tier: 3
     category: language
     severity: suggestion
+    scope: window
     principle: >
       Action should name the agent and the verb in that order. The passive
       voice hides who is doing what, which is exactly the information a
@@ -1310,6 +1333,7 @@ rules:
     tier: 3
     category: language
     severity: suggestion
+    scope: window
     principle: >
       An adverb attached to a weak verb is a stronger verb waiting to be
       found. "Walks slowly" is not a shot; "drags" is.
@@ -1323,6 +1347,7 @@ rules:
     tier: 3
     category: language
     severity: suggestion
+    scope: window
     principle: >
       "Begins to", "starts to", and "proceeds to" put a frame between the
       reader and the action. The camera does not photograph beginning to
@@ -1337,6 +1362,7 @@ rules:
     tier: 3
     category: language
     severity: suggestion
+    scope: window
     principle: >
       Similes, metaphors, and authorial asides that cannot be photographed
       belong to prose. A screenplay's description is a shot list in
@@ -1351,6 +1377,7 @@ rules:
     tier: 3
     category: language
     severity: suggestion
+    scope: window
     principle: >
       Smell, taste, and temperature reach the audience only through what they
       can see or hear. Describe the behaviour the sensation causes, not the
@@ -1365,6 +1392,7 @@ rules:
     tier: 3
     category: language
     severity: warning
+    scope: window
     principle: >
       Dialogue in a language other than the script's primary language must be
       marked with a parenthetical naming the language, a subtitle note, or a
@@ -1931,6 +1959,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       A question a character puts to the story, as opposed to a question
       answered in the next line, sets an expectation the document should
@@ -1948,6 +1977,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       An object, an ability, or a fact given deliberate attention creates an
       expectation of use. Flag a plant that gets a beat of its own and then
@@ -1963,6 +1993,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       A run of scenes following one situation should either resolve or be
       deliberately left open. Flag a strand that simply stops being written
@@ -1977,6 +2008,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       When a character says out loud what they are going to do, the document
       should either show it, contradict it, or have somebody notice it did
@@ -1991,6 +2023,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       A character built up across several scenes and then simply absent
       reads as an oversight rather than a choice. Flag the last appearance
@@ -2006,6 +2039,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       Information delivered before the story has given the audience a reason
       to want it lands as an announcement. Flag a speech that supplies a
@@ -2020,6 +2054,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       When a scene turns, the turn should happen in front of the audience.
       Flag a scene where the change is reported in dialogue after the fact
@@ -2034,6 +2069,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       A character walking into a scene changes it. Flag an entrance the
       scene absorbs without a single beat of reaction, where the arrival was
@@ -2048,6 +2084,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       When the story jumps forward, the page has to say so, in a heading, in
       a line of description, or in dialogue. Flag a jump the reader can only
@@ -2062,6 +2099,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Somebody the description puts in a room and then never gives a line, a
       reaction, or a piece of business is a person the scene forgot. Flag

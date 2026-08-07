@@ -21,7 +21,7 @@ changed, the old one is marked rather than deleted.
 | Rules carrying numeric params | **54** (30 tier 1, 24 tier 2) | `[r for r in book.rules if r.params]` |
 | Profiles | 4 | `us-spec-feature`, `tv-pilot`, `shooting-script`, `indian-regional` |
 | Rules resolving per profile | 139 / 142 / 139 / 142 | `sluglint rules --check --profile X` |
-| Tests | 221 | `pytest -q` |
+| Tests | 223 | `pytest -q` |
 | pylint | 10.00/10 | `pylint src/sluglint` |
 | Clean-fixture findings | 0 errors, 0 warnings, all profiles | `test_clean_script_stays_clean` |
 

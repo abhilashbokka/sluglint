@@ -28,7 +28,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from sluglint.ingest import load_script  # noqa: E402
-from sluglint.lint.tier3_llm import DEFAULT_MODEL, FilterStats, run  # noqa: E402
+from sluglint.lint.tier3_llm import (  # noqa: E402
+    DEFAULT_MODEL,
+    FilterStats,
+    run,
+    run_document_scale,
+)
 from sluglint.rulebook import load_rulebook, rules_by_tier  # noqa: E402
 
 
@@ -39,11 +44,16 @@ def main() -> int:
     ap.add_argument("--profile", default="")
     ap.add_argument("--min-confidence", type=float, default=0.6)
     ap.add_argument("--json", type=Path, default=None)
+    ap.add_argument("--no-document-pass", action="store_true",
+                    help="skip the whole-script pass, which is one large call")
     args = ap.parse_args()
 
     book = load_rulebook()
     rules = rules_by_tier(book.rules, 3)
-    print(f"{len(rules)} tier-3 rules, model {DEFAULT_MODEL}\n", file=sys.stderr)
+    windowed = [r for r in rules if r.scope != "document"]
+    whole = [r for r in rules if r.scope == "document"]
+    print(f"{len(rules)} tier-3 rules ({len(windowed)} window scale, "
+          f"{len(whole)} document scale), model {DEFAULT_MODEL}\n", file=sys.stderr)
 
     rows, totals = [], FilterStats(model=DEFAULT_MODEL)
     for path in args.scripts:
@@ -54,8 +64,14 @@ def main() -> int:
             continue
         stats = FilterStats()
         started = time.monotonic()
-        findings, notices = run(script, rules, profile=args.profile,
+        findings, notices = run(script, windowed, profile=args.profile,
                                 min_confidence=args.min_confidence, stats=stats)
+        if not args.no_document_pass:
+            doc_findings, doc_notices = run_document_scale(
+                script, whole, profile=args.profile,
+                min_confidence=args.min_confidence, stats=stats)
+            findings += doc_findings
+            notices += doc_notices
         elapsed = time.monotonic() - started
 
         # Which rules actually fired is the other half of the answer: a tier
@@ -71,13 +87,16 @@ def main() -> int:
             "out_of_window": stats.dropped_out_of_window,
             "low_confidence": stats.dropped_low_confidence,
             "unquotable": stats.dropped_unquotable,
+            "misattributed": stats.dropped_misattributed,
+            "coverage": round(stats.coverage, 3),
             "rules_fired": fired,
             "findings": [f.to_dict() for f in findings],
         })
         for field in ("calls", "failed_calls", "proposed", "accepted"):
             setattr(totals, field, getattr(totals, field) + getattr(stats, field))
         for field in ("dropped_unknown_rule", "dropped_out_of_window",
-                      "dropped_low_confidence", "dropped_unquotable"):
+                      "dropped_low_confidence", "dropped_unquotable",
+                      "dropped_misattributed"):
             setattr(totals, field, getattr(totals, field) + getattr(stats, field))
         print(f"  {path.name[:38]:40} {stats.proposed:4} proposed "
               f"{stats.accepted:4} kept  {elapsed:5.0f}s", file=sys.stderr)
@@ -90,17 +109,18 @@ def main() -> int:
 
     print(f"\n# Tier 3 on {len(rows)} scripts, model {DEFAULT_MODEL}\n")
     print("| Script | Scenes | Calls | Proposed | Kept | Unknown rule | "
-          "Out of window | Low confidence | Not quotable |")
-    print("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+          "Out of window | Low confidence | Not quotable | Misattributed | Coverage |")
+    print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for r in rows:
         print(f"| {r['script'][:32]} | {r['scenes']} | {r['calls']} | {r['proposed']} | "
               f"{r['accepted']} | {r['unknown_rule']} | {r['out_of_window']} | "
-              f"{r['low_confidence']} | {r['unquotable']} |")
+              f"{r['low_confidence']} | {r['unquotable']} | {r['misattributed']} | "
+              f"{r['coverage']:.0%} |")
     kept_pct = 100.0 * totals.accepted / totals.proposed if totals.proposed else 0.0
     print(f"| **total** | | **{totals.calls}** | **{totals.proposed}** | "
           f"**{totals.accepted}** | {totals.dropped_unknown_rule} | "
           f"{totals.dropped_out_of_window} | {totals.dropped_low_confidence} | "
-          f"{totals.dropped_unquotable} |")
+          f"{totals.dropped_unquotable} | {totals.dropped_misattributed} | |")
     print(f"\n**{totals.accepted} of {totals.proposed} proposed findings survived "
           f"every filter ({kept_pct:.0f}%).**")
 

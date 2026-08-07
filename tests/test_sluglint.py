@@ -719,6 +719,82 @@ def test_one_place_spelled_two_ways_is_still_location_drift():
 # The stats layer reports numbers unconditionally. It must never carry a
 # verdict, and every number has to be arithmetic a reader can redo by hand.
 
+# Page count had no test, which is how it stayed a third low for so long: the
+# parser drops blank lines, and the old estimate divided what was left by 55 as
+# though they were still there. Measured against seven produced screenplays
+# whose real page count is known, a page carries about 36.5 lines of text.
+
+def test_printed_lines_wraps_to_the_column_it_prints_in():
+    from sluglint.models import printed_lines
+    assert printed_lines("", "action") == 0
+    assert printed_lines("   ", "action") == 0
+    assert printed_lines("short line", "action") == 1
+    # Action runs the full six-inch measure, 60 characters.
+    assert printed_lines("x" * 60, "action") == 1
+    assert printed_lines("x" * 61, "action") == 2
+    assert printed_lines("x" * 180, "action") == 3
+    # Dialogue sits in a narrower column, so the same words take more lines.
+    assert printed_lines("x" * 60, "dialogue") == 2
+    assert printed_lines("x" * 60, "parenthetical") == 3
+
+
+def test_a_real_page_count_wins_over_the_estimate():
+    from sluglint.metrics import analyse
+    script = parse_file(V1)
+    loose = script.estimated_pages
+    assert loose > 0
+    script.page_count = 118
+    assert script.estimated_pages == 118.0
+    # And the scenes are rescaled to it, so the parts still sum to the whole.
+    m = analyse(script)
+    assert m.pages == 118.0
+    assert abs(sum(sc.pages for sc in m.scenes) - 118.0) < 0.5
+
+
+def test_scene_pages_sum_to_the_document_without_a_real_count():
+    from sluglint.metrics import analyse
+    m = analyse(parse_file(V1))
+    assert abs(sum(sc.pages for sc in m.scenes) - m.pages) < 0.5
+
+
+def test_a_wrapped_source_is_not_wrapped_twice():
+    """A crawled text dump and a PDF row are already one printed line each.
+    Re-wrapping those at a narrower standard column counts every line twice,
+    which put a ScriptBase script at 188 pages instead of 138."""
+    from sluglint.models import already_wrapped, printed_lines
+    body = "\n\n".join("The room is quiet and nobody moves an inch at all here."
+                       for _ in range(60))
+    wrapped_src = parse_text(f"INT. ROOM - DAY\n\n{body}\n")
+    assert already_wrapped(wrapped_src.elements) is True
+    # 56 characters is under the 60-character action column either way, but a
+    # source at 67 would double without the check.
+    long_body = "\n\n".join("x" * 67 for _ in range(60))
+    src = parse_text(f"INT. ROOM - DAY\n\n{long_body}\n")
+    assert already_wrapped(src.elements) is True
+    assert printed_lines("x" * 67, "action", True) == 1
+    assert printed_lines("x" * 67, "action", False) == 2
+
+    # A paragraph source is mostly short with a long tail, and must be wrapped.
+    paras = "\n\n".join("word " * (16 if i % 5 else 90) for i in range(50))
+    loose = parse_text(f"INT. ROOM - DAY\n\n{paras}\n")
+    assert already_wrapped(loose.elements) is False
+    # And the fixtures, which are the real thing rather than a construction.
+    assert already_wrapped(parse_file(CLEAN).elements) is False
+
+
+def test_a_paragraph_on_one_source_line_still_costs_several_pages_lines():
+    """Fountain holds a whole paragraph on one line; a PDF row is already one
+    printed line. Both have to count the same way or the two inputs disagree."""
+    from sluglint.models import printed_lines
+    long_para = "The room is " + "very " * 60 + "quiet."      # 318 characters
+    a = parse_text(f"INT. ROOM - DAY\n\n{long_para}\n")
+    b = parse_text("INT. ROOM - DAY\n\nThe room is quiet.\n")
+    assert printed_lines(long_para, "action") == 6
+    def lines(sc):
+        return sum(printed_lines(e.text, e.type) for e in sc.elements)
+    assert lines(a) == 7 and lines(b) == 2
+    assert a.estimated_pages > b.estimated_pages
+
 def test_metrics_count_what_is_on_the_page():
     from sluglint.metrics import analyse
     m = analyse(parse_file(V1))

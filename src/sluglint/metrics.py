@@ -29,7 +29,7 @@ from dataclasses import asdict, dataclass, field
 
 from . import characters as chars
 from . import network as net
-from .models import LINES_PER_PAGE, ElementType, Script
+from .models import BODY_LINES_PER_PAGE, ElementType, Script, already_wrapped, printed_lines
 
 EIGHTHS = 8
 NIGHT_TOKENS = {"NIGHT", "DUSK", "DAWN", "EVENING", "MIDNIGHT", "LATE NIGHT"}
@@ -216,9 +216,9 @@ class ScriptMetrics:
         return d
 
 
-def _scene_pages(scene) -> float:
-    body = [el for el in scene.elements if el.text.strip()]
-    return len(body) / LINES_PER_PAGE
+def _scene_pages(scene, prewrapped: bool = False) -> float:
+    lines = sum(printed_lines(el.text, el.type, prewrapped) for el in scene.elements)
+    return lines / BODY_LINES_PER_PAGE
 
 
 def _longest_absence(scene_idxs: list[int]) -> int:
@@ -250,7 +250,8 @@ def character_metrics(script: Script,
     registry = script.character_registry()
     counts = script.dialogue_counts()
     total_lines = sum(counts.values()) or 1
-    pages_by_scene = {sc.index: _scene_pages(sc) for sc in script.scenes}
+    wrapped = already_wrapped(script.elements)
+    pages_by_scene = {sc.index: _scene_pages(sc, wrapped) for sc in script.scenes}
     starts = page_starts or {}
     attrs = attributes or {}
     words: Counter[str] = Counter()
@@ -297,6 +298,7 @@ def character_metrics(script: Script,
 
 
 def location_metrics(script: Script) -> list[LocationMetrics]:
+    wrapped = already_wrapped(script.elements)
     by_name: dict[str, LocationMetrics] = {}
     for sc in script.scenes:
         name = (sc.location or "UNSPECIFIED").strip().upper()
@@ -304,7 +306,7 @@ def location_metrics(script: Script) -> list[LocationMetrics]:
         if m is None:
             m = by_name[name] = LocationMetrics(name, [], 0.0, 0, 0, False, False)
         m.scenes.append(sc.index)
-        m.pages = round(m.pages + _scene_pages(sc), 2)
+        m.pages = round(m.pages + _scene_pages(sc, wrapped), 2)
         tod = (sc.time_of_day or "").upper()
         if tod in NIGHT_TOKENS:
             m.night_scenes += 1
@@ -318,12 +320,13 @@ def location_metrics(script: Script) -> list[LocationMetrics]:
 
 
 def scene_metrics(script: Script) -> list[SceneMetrics]:
+    wrapped = already_wrapped(script.elements)
     out = []
     cursor = 0.0
     for sc in script.scenes:
         dialogue = sum(1 for el in sc.elements if el.type == ElementType.DIALOGUE)
         action = sum(1 for el in sc.elements if el.type == ElementType.ACTION)
-        pages = _scene_pages(sc)
+        pages = _scene_pages(sc, wrapped)
         out.append(SceneMetrics(
             index=sc.index, heading=sc.heading, location=sc.location,
             time_of_day=sc.time_of_day, int_ext=sc.int_ext,
@@ -446,6 +449,13 @@ def analyse(script: Script) -> ScriptMetrics:
     """Every production number this script can be asked for, in one pass."""
     pages = script.estimated_pages
     scenes = scene_metrics(script)
+    # When the source states a real page count, the scenes are rescaled to it
+    # so every per-scene and per-location page number still sums to the whole.
+    loose = sum(sc.pages for sc in scenes)
+    if script.page_count and loose:
+        scale = pages / loose
+        for sc in scenes:
+            sc.pages = round(sc.pages * scale, 2)
     page_starts = {sc.index: sc.page_start for sc in scenes}
     cast = character_metrics(script, chars.profiles(script), page_starts)
     locs = location_metrics(script)

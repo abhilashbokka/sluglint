@@ -382,4 +382,8 @@ def ingest(path: str | Path) -> PdfIngest:
 def parse_pdf(path: str | Path) -> tuple[Script, list[str]]:
     """PDF -> (Script, ingest notes)."""
     result = ingest(path)
-    return parse_text(result.fountain, str(path)), result.notes
+    script = parse_text(result.fountain, str(path))
+    # The PDF states its own page count. Nothing derived beats that, and the
+    # derived estimate was a third low before this was wired through.
+    script.page_count = result.pages
+    return script, result.notes

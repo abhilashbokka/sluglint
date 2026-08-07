@@ -25,7 +25,7 @@ the extras here (`pdfplumber`, `anthropic`) are the project's, not the machine's
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,pdf,llm,indic]"            # dev only: drop the extras
 
-pytest -q                                        # 215 tests, must stay green
+pytest -q                                        # 219 tests, must stay green
 ruff check . && pylint src/sluglint              # must stay clean (10.00/10)
 
 python -m sluglint.cli lint examples/the_last_train.fountain
@@ -53,9 +53,16 @@ the linter does not.
 `pytest` and imports work without `PYTHONPATH`, `pyproject.toml` sets
 `pythonpath = ["src"]`.
 
-Tier 3 needs `ANTHROPIC_API_KEY`; model default `claude-sonnet-5` (override with
-`SLUGLINT_MODEL`). Missing key must never crash, tiers 1-2 run, tier 3 reports
-itself skipped. Keep it that way.
+Tier 3 takes either `ANTHROPIC_API_KEY` or any OpenAI-compatible endpoint via
+`SLUGLINT_LLM_BASE_URL` + `SLUGLINT_LLM_API_KEY` (stdlib `urllib`, no second
+dependency). Model default `claude-sonnet-5`, override with `SLUGLINT_MODEL`.
+Missing key must never crash, tiers 1-2 run, tier 3 reports itself skipped.
+Keep it that way. See [docs/tier3-providers.md](docs/tier3-providers.md).
+
+**Check the provider's data policy before pointing tier 3 at a corpus.** Some
+free tiers train on the prompts they receive, and a screenplay this project may
+not redistribute is one it may not hand to a trainer either. That is hard rule
+9 applied to inference, and it is why `SLUGLINT_LLM_BASE_URL` has no default.
 
 ## Architecture map
 
@@ -78,7 +85,7 @@ itself skipped. Keep it that way.
 | `src/sluglint/network.py` | Co-presence graph: edges, components, cut vertices, weighted degree. Numbers only, no verdict. |
 | `src/sluglint/config.py` | `.sluglint.yaml`: disable, re-grade, retune, allow-list, min severity. Cannot invent a rule. |
 | `src/sluglint/logline.py` | GENERATED synopsis and loglines. Fenced out of the linter, never a Finding, cached per draft. |
-| `src/sluglint/lint/tier3_llm.py` | Claude judges: rubric build, chunking, schema-enforced JSON, hallucination filters. |
+| `src/sluglint/lint/tier3_llm.py` | LLM judges: rubric build, chunking, schema-enforced JSON, hallucination filters, and `FilterStats` counting what each filter caught. Two providers, Anthropic and anything OpenAI-compatible. |
 | `src/sluglint/diff.py` | Resolved/new/persisting findings + scene-level diff. |
 | `src/sluglint/metrics.py` | Production numbers with no verdict attached: presence per character, page load per location, day/night split, company moves, genre signals. Arithmetic only. |
 | `src/sluglint/dashboard.py` | The stats view as a self-contained HTML page. No JS, no network, no script text. |
@@ -86,8 +93,8 @@ itself skipped. Keep it that way.
 | `src/sluglint/cli.py` | `lint` / `stats` / `diff` / `rules` / `convert` / `logline`. |
 | `examples/` | `clean_pages` (must stay clean), one fixture per profile, the v1 to v2 diff pair. |
 | `benchmark/` | `run.py` injects known defects and measures recall. `local_report.py` lints a private corpus for the precision pass. `thresholds.py` measures every rulebook threshold against a corpus, per named container, and verifies each extractor against the shipped detector. `corpus/` and `local/` are both gitignored. |
-| `tests/` | 215 tests. Positive fixture per deterministic rule + clean-script gate. |
-| `docs/` | Competitive landscape, product and business model, script licensing, the corpus sweep, the OCR design, the report model. |
+| `tests/` | 219 tests. Positive fixture per deterministic rule + clean-script gate. |
+| `docs/` | Competitive landscape, product and business model, script licensing, the corpus sweep, the OCR design, the report model, the tier-3 provider matrix. |
 | `docs/research/` | Paper-idea tracker, one file per idea, plus `evidence.md`: every measured number with its provenance. Cite that file rather than restating a number. |
 
 ## Hard rules for working in this repo

@@ -21,7 +21,7 @@ changed, the old one is marked rather than deleted.
 | Rules carrying numeric params | **54** (30 tier 1, 24 tier 2) | `[r for r in book.rules if r.params]` |
 | Profiles | 4 | `us-spec-feature`, `tv-pilot`, `shooting-script`, `indian-regional` |
 | Rules resolving per profile | 139 / 142 / 139 / 142 | `sluglint rules --check --profile X` |
-| Tests | 215 | `pytest -q` |
+| Tests | 219 | `pytest -q` |
 | pylint | 10.00/10 | `pylint src/sluglint` |
 | Clean-fixture findings | 0 errors, 0 warnings, all profiles | `test_clean_script_stays_clean` |
 
@@ -67,7 +67,7 @@ verdict.
 | Findings, all readable (53 docs, 4,884 pp) | 12,671 |
 | Errors / warnings / suggestions, trusted | 283 / 3,003 / 4,159 |
 | Rules that fired | 93 of 150 |
-| Tier-3 rules that fired | **0 of 38** (sweep ran with the LLM tier off) |
+| Tier-3 rules that fired | **0 of 38** (sweep ran with the LLM tier off; still unmeasured) |
 | Top 12 rules' share of all findings | **60%** |
 
 An earlier run of this table reported 367 findings per 100 pages across 1,771

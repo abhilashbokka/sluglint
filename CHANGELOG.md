@@ -179,10 +179,38 @@ same file in ScriptBase).
 - README corrected: the test badge said 153 against an actual 208, and the
   inline benchmark numbers were a corpus behind.
 
+### Tier 3 runs on any OpenAI-compatible endpoint
+
+`tier3_llm` gained a second provider, reached over stdlib `urllib` so core
+takes no new dependency. Set `SLUGLINT_LLM_BASE_URL` and
+`SLUGLINT_LLM_API_KEY` and the same 38 rubrics run on Groq, Cerebras,
+OpenRouter, NVIDIA NIM, or Google's compatibility endpoint. Anthropic stays
+the default when `ANTHROPIC_API_KEY` is set, and no key at all still means
+tier 3 reports itself skipped while tiers 1 and 2 run.
+
+Also new: `SLUGLINT_LLM_RPM` paces calls to a free tier's budget, a 429 is
+waited out rather than treated as a failure, and `SLUGLINT_SCENES_PER_CALL`
+and `SLUGLINT_MAX_TOKENS` make a small context window workable. A tier-3 call
+is about 4,500 input tokens and a 130-scene feature is 22 calls, measured
+rather than estimated.
+
+**`FilterStats` counts what each hallucination filter caught.** Every judged
+item is attributed to the first filter that rejected it, so the columns sum to
+the number proposed, and each run prints a line like `61 findings proposed, 34
+kept, 27 dropped (44%) [unknown rule 2, out of window 5, low confidence 11,
+not quotable 9]`. Until this existed the claim that tier 3 filters
+hallucinations had no number behind it.
+
+Provider data policies matter more than rate limits here and are tabulated in
+[docs/tier3-providers.md](docs/tier3-providers.md): some free tiers train on
+the prompts they receive, and a screenplay this project may not redistribute is
+one it may not hand to a trainer either.
+
 ### Known gaps
 
-- **Tier 3 has never run on a real screenplay.** All 38 tier-3 rules are silent
-  across the 49-document sweep because it ran with the LLM tier off.
+- **Tier 3 has still never run on a real screenplay.** All 38 tier-3 rules are
+  silent in every corpus figure. The plumbing and the measurement now exist;
+  the run does not.
 - **Precision is unmeasured.** Recall is 97% on injected defects. No labelled
   set exists.
 - Findings per 100 pages on the trusted corpus is **249**, and an earlier

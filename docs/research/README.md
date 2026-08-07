@@ -95,9 +95,17 @@ that reads as a finding about the world. Two more of that class are now in hand:
 page counts a third low, and scene pages up to 30% long.
 
 **Do not write about the three-tier architecture yet.** A quarter of the
-rulebook has never touched real input. Run tier 3 on five documents with
-per-filter counters first; the drop rate of each hallucination filter is a
-result in its own right and it costs about twenty dollars to obtain.
+rulebook has never touched real input. The blocker is now gone: tier 3 speaks
+to any OpenAI-compatible endpoint, several of which are permanently free, and
+`FilterStats` counts what each hallucination filter caught. See
+[../tier3-providers.md](../tier3-providers.md).
+
+That also turns a weak claim into a strong one. A single Claude run would have
+produced one drop rate, and "we filter hallucinations" is not a finding. **The
+same rubrics against three models gives three drop rates**, and a weaker model
+whose filters catch more is evidence the filters work rather than evidence the
+model is bad. Watch the licence line: the corpus cannot go to a provider that
+trains on prompts.
 
 **04 is the highest-leverage new idea.** It converts the precision problem from
 "we could not measure it" into "here is a mechanism that measures it

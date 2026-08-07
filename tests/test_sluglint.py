@@ -14,6 +14,7 @@ measured:
 Together these are the seed of the fault-injection eval harness in the
 roadmap (mutate a clean script -> labelled corpus -> per-rule precision).
 """
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -1135,6 +1136,95 @@ def test_logline_reports_a_missing_key_instead_of_crashing(monkeypatch):
     monkeypatch.setattr(logline, "load_cached", lambda *a, **k: None)
     summary, notices = logline.generate(parse_file(V1))
     assert summary is None and any("ANTHROPIC_API_KEY" in n for n in notices)
+
+
+# ============================================================ tier 3 plumbing
+
+def test_tier3_reports_a_missing_key_for_whichever_provider_is_configured(monkeypatch):
+    from sluglint.lint import tier3_llm
+    rules = [r for r in load_rulebook().rules if r.tier == 3][:2]
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("SLUGLINT_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("SLUGLINT_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    findings, notices = tier3_llm.run(parse_file(V1), rules)
+    assert findings == [] and any("ANTHROPIC_API_KEY" in n for n in notices)
+
+    # Pointed at an OpenAI-compatible endpoint, it asks for that key instead.
+    monkeypatch.setenv("SLUGLINT_LLM_BASE_URL", "https://api.groq.com/openai/v1")
+    findings, notices = tier3_llm.run(parse_file(V1), rules)
+    assert findings == [] and any("SLUGLINT_LLM_API_KEY" in n for n in notices)
+
+
+def test_tier3_filters_are_counted_so_their_drop_rate_is_measurable(monkeypatch):
+    """Each judged item is attributed to exactly one filter, so the columns sum.
+
+    The filters are the part of tier 3 worth defending and there was no number
+    behind them until this existed."""
+    from sluglint.lint import tier3_llm
+    rules = [r for r in load_rulebook().rules if r.tier == 3][:1]
+    rule_id = rules[0].id
+    # One chunk, so every proposal meets the same window and each rejection is
+    # attributable to one filter without arithmetic.
+    script = parse_text("INT. BAR - NIGHT\n\nA man waits by the window.\n")
+    assert len(list(tier3_llm._chunks(script))) == 1
+    quotable = "A man waits by the window."
+
+    proposals = [
+        {"rule_id": "NOPE", "scene_index": 0, "evidence": "", "message": "m",
+         "suggestion": "s", "confidence": 0.9},                    # unknown rule
+        {"rule_id": rule_id, "scene_index": 9999, "evidence": "", "message": "m",
+         "suggestion": "s", "confidence": 0.9},                    # out of window
+        {"rule_id": rule_id, "scene_index": 0, "evidence": "", "message": "m",
+         "suggestion": "s", "confidence": 0.1},                    # low confidence
+        {"rule_id": rule_id, "scene_index": 0, "evidence": "never in the script",
+         "message": "m", "suggestion": "s", "confidence": 0.9},    # not quotable
+        {"rule_id": rule_id, "scene_index": 0, "evidence": quotable,
+         "message": "m", "suggestion": "s", "confidence": 0.9},    # survives
+    ]
+    monkeypatch.setenv("SLUGLINT_LLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("SLUGLINT_LLM_API_KEY", "test")
+    monkeypatch.setattr(tier3_llm, "_openai_compatible",
+                        lambda *a, **k: json.dumps({"findings": proposals}))
+
+    stats = tier3_llm.FilterStats()
+    findings, notices = tier3_llm.run(script, rules, stats=stats)
+
+    assert stats.calls == 1 and stats.failed_calls == 0
+    assert stats.proposed == 5
+    assert stats.accepted == len(findings) == 1
+    assert stats.dropped_unknown_rule == 1
+    assert stats.dropped_out_of_window == 1
+    assert stats.dropped_low_confidence == 1
+    assert stats.dropped_unquotable == 1
+    # The columns account for every proposal, which is what makes the drop
+    # rate a measurement rather than an impression.
+    assert (stats.dropped_unknown_rule + stats.dropped_out_of_window
+            + stats.dropped_low_confidence + stats.dropped_unquotable
+            + stats.accepted) == stats.proposed
+    assert any("dropped" in n for n in notices)
+
+
+def test_a_dead_provider_leaves_tiers_1_and_2_usable(monkeypatch):
+    from sluglint.lint import tier3_llm
+    rules = [r for r in load_rulebook().rules if r.tier == 3][:1]
+    monkeypatch.setenv("SLUGLINT_LLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("SLUGLINT_LLM_API_KEY", "test")
+
+    def boom(*a, **k):
+        raise OSError("no route to host")
+
+    monkeypatch.setattr(tier3_llm, "_openai_compatible", boom)
+    findings, notices = tier3_llm.run(parse_file(V1), rules)
+    assert findings == []
+    assert any("no route to host" in n for n in notices)
+
+
+def test_the_throttle_paces_calls_to_a_requests_per_minute_budget():
+    from sluglint.lint import tier3_llm
+    assert tier3_llm._Throttle(0).gap == 0.0          # unset is a no-op
+    assert tier3_llm._Throttle(30).gap == pytest.approx(2.0)
 
 
 # ============================================================ the network on the page

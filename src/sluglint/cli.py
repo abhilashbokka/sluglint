@@ -75,7 +75,8 @@ def main(argv: list[str] | None = None) -> int:
 
     pl = sub.add_parser("lint", help="lint one script")
     pl.add_argument("script", type=Path)
-    pl.add_argument("--llm", action="store_true", help="run tier-3 LLM rubric judges")
+    pl.add_argument("--llm", action="store_true",
+                    help="run tier-3 LLM rubric judges (see docs/tier3-providers.md)")
     pl.add_argument("--json", type=Path, default=None, help="also write findings JSON here")
     _add_common(pl)
 

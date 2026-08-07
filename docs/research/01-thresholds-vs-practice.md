@@ -1,14 +1,30 @@
 # 01. Prescriptive thresholds against observed practice
 
-**Status: strongest idea on the board. First pass run, and it replicated.
-Results in [threshold-results.md](threshold-results.md).**
+**Status: strongest idea on the board. Complete pass run, by a committed
+harness, on 1,082 films. Results in [threshold-results.md](threshold-results.md).**
 
-**Update, 2026-08-07.** Eleven of the 54 thresholds are now measured against 214
-ScriptBase films and 189,078 action paragraphs. F004 replicated to within half a
-percentage point on a corpus of completely different provenance. Two more
-thresholds fail the same way: F013 at p87, and C021 with 88% of produced
-screenplays above the line. Corpus choice is worked through in
-[corpus-options.md](corpus-options.md).
+**Update, 2026-08-07, second pass.** `benchmark/thresholds.py` now exists and
+every one of the 91 numeric parameters is classified and, where a document can
+answer, measured. 1,082 films, 149,310 scenes, 882,948 action paragraphs.
+
+Three things changed the shape of the idea:
+
+**The taxonomy is a contribution in itself.** Of 91 parameters, only 36 are
+decision thresholds. 26 are activation gates that decide whether a rule runs at
+all, and 13 cannot be measured from a document. Any paper that reported "we
+measured 91 thresholds" would be wrong about what it measured.
+
+**19 of the 36 flagged more than one unit in ten** of produced practice as
+shipped. Three are now retuned from the corpus (C021, C028, C038) and one turned
+out to need a code fix instead.
+
+**F013 is the best result and it inverts the thesis.** It was going to be a
+fourth retuning: the first pass put it at p87 and called it too strict. Splitting
+the corpus by draft stage showed it flagging 52% of numbered headings and 0.8%
+of unnumbered ones, because a shooting script prints its scene number at both
+margins and the rule measured the string as printed. The threshold of 60 was
+correct. The quantity was not. A quantified rule can fail two ways and the
+second one passes every check that would catch the first.
 
 ## Claim
 
@@ -72,12 +88,18 @@ Three secondary results fall out of the same pass:
   teaching is well calibrated, with these exceptions", which is a smaller but
   still publishable result. The paper should be written so either answer is
   interesting, and the analysis pre-registered so it is credible that it was.
-- **Whether the misses cluster.** A prior worth testing: rules about *quantity*
-  (how long, how many) are miscalibrated more often than rules about *form*
-  (whether a marker is present). Form has a right answer; quantity has a
-  distribution, and teaching tends to state the aspirational end of it.
-- **Whether era or language shifts the distribution.** Citizen Kane and Marty
-  Supreme are eighty-five years apart in the same corpus.
+- **Whether the misses cluster.** Measured, and they do, though not where the
+  prior expected. Element-scale thresholds mostly hold (8 of 14); document-scale
+  ratios mostly do not (13 of 22 flag over one in ten). The pattern is that a
+  rule about one written thing is calibrated by people who looked at written
+  things, and a rule about a whole-document ratio is a number somebody reasoned
+  to.
+- **Whether genre shifts the distribution.** Measured, and the answer is
+  negative and useful: F004 varies from 1.6% to 1.9% across six genres, C021
+  from 84% to 91%. A threshold that fails, fails in every genre. Only two rules
+  are genuinely genre-dependent (F033 and F036, both driven by Comedy).
+- **Whether era or language shifts the distribution.** Language: F004 holds in
+  Telugu at p94.3. Era is still unmeasured, and the corpus spans 1926 to 2013.
 
 ## Why it generalises
 
@@ -100,11 +122,11 @@ unusually easy to compute.
 
 ## Risks and objections
 
-**"You measured 19 scripts."** Answered. The replication runs on 214 gated
-ScriptBase films and 189,078 action paragraphs, and agrees with the original 19
-PDFs to within half a percentage point at both the taught and the shipped value.
-Two corpora of different provenance reaching the same number is a stronger
-answer than one large corpus would have been.
+**"You measured 19 scripts."** Answered four times over. The taught value of
+four lines sits between p93.6 and p94.7 across 19 PDFs, 214 ScriptBase films,
+1,082 ScriptBase films, and 7 Telugu drafts: three corpora of different
+provenance, two languages, a 48-fold range in size. Several corpora reaching the
+same number is a stronger answer than one large corpus would have been.
 
 **"Your corpus is biased toward acclaimed films."** True, and it argues for the
 result. The scripts that circulate publicly do so because of award-season
@@ -113,10 +135,17 @@ documents violating the taught threshold, the threshold is not describing good
 practice. Say it in the paper before a reviewer says it.
 
 **"Produced scripts are shooting scripts, and the rules are for spec drafts."**
-The strongest objection, and it needs a real answer rather than a wave. Some
-rules genuinely differ by draft stage, which is why Sluglint has profiles. The
-paper should report the profile alongside each threshold and exclude any rule
-whose taught value is explicitly stage-specific.
+The strongest objection, and it now has a measured answer rather than a wave.
+The corpus splits on scene numbering, 284 production drafts against 798
+spec-style. F008 is 64.4% outside the band on the first and 52.5% on the second,
+so the result holds on both sides and is not a shooting-script artifact. C021,
+C028, and C038 vary by less than three points across the split. F013 varied by
+52 points, and that is how its defect was found.
+
+Where the objection does land is F008 itself, which is why it was deliberately
+NOT retuned: a produced screenplay is a later artifact than a submitted spec, so
+the corpus answers a different question from the one the rule asks. Saying that
+is better than moving the number.
 
 **"You are arguing against craft teaching."** Not the claim, and the framing
 above exists to prevent this reading. The teaching is doing its job. The
@@ -130,15 +159,19 @@ off. The paper argues about operational usefulness rather than about aesthetics.
 
 ## Blocked on
 
-- ~~**Corpus size.**~~ Solved. ScriptBase gives 1,276 films with genre and year
-  metadata, of which 214 are already measured. See
-  [corpus-options.md](corpus-options.md).
-- **A profile split.** F008 cannot be read without separating spec drafts from
-  shooting scripts, and ScriptBase does not label draft stage. Scene numbering
-  is a usable proxy and is already detected.
-- **A harness.** `benchmark/thresholds.py` does not exist yet: read every rule
-  with params, compute the matching empirical distribution, emit the table. This
-  is a day of work and is the immediate next step.
+- ~~**Corpus size.**~~ Solved. All 1,276 ScriptBase archives are measured, 1,082
+  past the gate. See [corpus-options.md](corpus-options.md).
+- ~~**A profile split.**~~ Done, on scene numbering as the draft-stage proxy. It
+  found the F013 defect on its first run, and it answered the F008 objection:
+  spec-style drafts are still 52.5% outside the band, so the length result is
+  not an artifact of shooting scripts.
+- ~~**A harness.**~~ `benchmark/thresholds.py`, committed, with `--verify`
+  checking each extractor against the shipped detector on 150 documents.
+- **A spec corpus.** The one thing still missing, and it blocks F008 and the
+  comparables bands together. Produced screenplays are a later artifact than the
+  drafts those rules address.
+- **A second corpus per language.** F004 has four measurements. Every other row
+  has one. [05](05-federated-statistics.md) is the route.
 
 ## Not blocked on
 

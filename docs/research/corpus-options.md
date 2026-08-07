@@ -137,6 +137,27 @@ than a PDF one, and it means the threshold study needs the same three-state gate
 the PDF reader has. A document that parses to zero scenes must be excluded from
 every distribution, and the exclusion count must be reported.
 
+## The frame was truncated, and the fix matters for anyone reusing this
+
+ScriptBase alpha holds **1,276 archives**. The first pass listed 994 of them and
+sampled 250, because the GitHub **contents** API returns at most 1,000 entries
+per directory and reports no truncation flag: it silently returns page 2
+identical to page 1. The alphabetical listing therefore stopped at *The Godfather
+Part II*, and every film after it was invisible to the sample.
+
+Use the **git trees** API instead, which carries an explicit `truncated` field:
+
+```
+https://api.github.com/repos/EdinburghNLP/scriptbase/git/trees/master?recursive=1
+```
+
+That also reveals a second collection, `scriptbase_j`, with 917 more archives
+and no IMDb metadata. It is unused here and is the obvious next container.
+
+Cache locally rather than refetching. `benchmark/thresholds.py` reads a
+directory of `<title>/script.txt`; keeping only `script.txt` and
+`imdb_meta.txt` from each tarball brings 1.4 GB down to 250 MB.
+
 ## Sources
 
 - ScriptBase: <https://github.com/EdinburghNLP/scriptbase>

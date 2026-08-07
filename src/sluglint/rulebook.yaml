@@ -426,7 +426,13 @@ rules:
     principle: >
       A feature spec is expected to land roughly between 90 and 120 pages at
       one page per minute of screen time; well outside that band invites an
-      automatic pass.
+      automatic pass. Deliberately NOT retuned from the corpus, unlike C021,
+      C028, and C038. Produced screenplays run past this ceiling more than
+      half the time, but a produced screenplay is a later artifact than the
+      draft this rule addresses: scripts are bought at 120 pages and shot at
+      150. Measuring the wrong population would have moved the number without
+      improving it. This band needs a corpus of specs as submitted, which is
+      the one corpus nobody can obtain.
     source: Field; SpecConv
 
   - id: F009
@@ -887,11 +893,15 @@ rules:
     category: production
     severity: suggestion
     detect: location_load
-    params: {max_per_page: 0.35, min_pages: 20}
+    params: {max_per_page: 1.15, min_pages: 20}
     principle: >
       Distinct locations drive company moves, and company moves drive
       schedule. Counting them early turns an invisible cost into a number.
-    source: ProdConv
+      The conventional figure of 0.35 per page sat near the 5th percentile of
+      produced practice and flagged 88% of 1,082 screenplays, so it described
+      almost every document rather than an unusual one. The value here is the
+      90th percentile of that corpus; the median runs 0.67.
+    source: ProdConv; measured, see docs/research/threshold-results.md
 
   - id: C022
     name: Night-scene share
@@ -1377,13 +1387,17 @@ rules:
     category: production
     severity: suggestion
     detect: company_moves
-    params: {max_ratio: 0.85, min_scenes: 25}
+    params: {max_ratio: 0.99, min_scenes: 25}
     principle: >
       A company move is a change of location between consecutive scenes, and
       it is the single biggest lever on a shooting day. When almost every
       scene sits at a different place from the one before it, the schedule is
-      being written by scene order rather than by geography.
-    source: ProdConv
+      being written by scene order rather than by geography. Measured across
+      1,082 produced screenplays the median is 0.96, so "almost every scene"
+      turns out to describe almost every screenplay: the old 0.85 flagged 96%
+      of them. The value here is the 90th percentile, and the honest reading
+      is that this measure barely separates one draft from another.
+    source: ProdConv; measured, see docs/research/threshold-results.md
 
   - id: C029
     name: Set used for a single fraction of a page
@@ -1863,12 +1877,17 @@ rules:
     category: craft
     severity: suggestion
     detect: crowded_opening
-    params: {opening_share: 0.1, max_cast: 8, min_scenes: 20}
+    params: {opening_share: 0.1, max_cast: 23, min_scenes: 20}
     principle: >
-      A reader can hold about half a dozen new names before they start
-      turning back pages. Names arriving faster than that in the opening
-      cost comprehension for the whole draft, whatever happens later.
-    source: Field; Snyder
+      A reader can hold only so many new names before they start turning back
+      pages. Names arriving faster than that in the opening cost comprehension
+      for the whole draft, whatever happens later. The taught figure is about
+      half a dozen; across 1,082 produced screenplays the median opening tenth
+      introduces eleven speaking parts, and a ceiling of eight flagged 65% of
+      them. The value here is the 90th percentile of that corpus. The teaching
+      is about what a reader can hold, and the measurement says produced
+      screenplays routinely ask for more, which is worth reporting either way.
+    source: Field; Snyder; measured, see docs/research/threshold-results.md
 
   - id: C039
     name: Substantial part arriving very late

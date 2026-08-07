@@ -25,7 +25,7 @@ the extras here (`pdfplumber`, `anthropic`) are the project's, not the machine's
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,pdf,llm,indic]"            # dev only: drop the extras
 
-pytest -q                                        # 208 tests, must stay green
+pytest -q                                        # 215 tests, must stay green
 ruff check . && pylint src/sluglint              # must stay clean (10.00/10)
 
 python -m sluglint.cli lint examples/the_last_train.fountain
@@ -40,7 +40,15 @@ python -m sluglint.cli logline script.pdf        # GENERATED, needs the key, cac
 
 python benchmark/run.py                          # recall, regenerates REPORT.md
 python benchmark/local_report.py ~/Scripts       # precision pass, output is gitignored
+python benchmark/thresholds.py CORPUS --label english-produced \
+    --genres --drafts --verify 150 --out results.md   # thresholds vs practice
 ```
+
+`thresholds.py` measures every numeric parameter in the rulebook against a
+corpus. Containers are named on the command line and NEVER pool: English and
+Telugu are different populations. `--verify` checks each extractor against the
+shipped detector, and a disagreement means the harness is measuring something
+the linter does not.
 
 `pytest` and imports work without `PYTHONPATH`, `pyproject.toml` sets
 `pythonpath = ["src"]`.
@@ -77,8 +85,8 @@ itself skipped. Keep it that way.
 | `src/sluglint/report.py` | Console/JSON rendering. |
 | `src/sluglint/cli.py` | `lint` / `stats` / `diff` / `rules` / `convert` / `logline`. |
 | `examples/` | `clean_pages` (must stay clean), one fixture per profile, the v1 to v2 diff pair. |
-| `benchmark/` | `run.py` injects known defects and measures recall. `local_report.py` lints a private corpus for the precision pass. `corpus/` and `local/` are both gitignored. |
-| `tests/` | 208 tests. Positive fixture per deterministic rule + clean-script gate. |
+| `benchmark/` | `run.py` injects known defects and measures recall. `local_report.py` lints a private corpus for the precision pass. `thresholds.py` measures every rulebook threshold against a corpus, per named container, and verifies each extractor against the shipped detector. `corpus/` and `local/` are both gitignored. |
+| `tests/` | 215 tests. Positive fixture per deterministic rule + clean-script gate. |
 | `docs/` | Competitive landscape, product and business model, script licensing, the corpus sweep, the OCR design, the report model. |
 | `docs/research/` | Paper-idea tracker, one file per idea, plus `evidence.md`: every measured number with its provenance. Cite that file rather than restating a number. |
 
@@ -172,10 +180,11 @@ itself skipped. Keep it that way.
 ## Prioritized next steps
 
 **Read [docs/research/evidence.md](docs/research/evidence.md) before quoting any
-number about this project.** Two standing facts that are easy to get wrong:
-recall is 97% and measured, precision has no number at all; and tier 3 has never
-run on a real screenplay, so all 38 of its rules are silent in every corpus
-figure.
+number about this project.** Three standing facts that are easy to get wrong:
+recall is 97% and measured, precision has no number at all; tier 3 has never run
+on a real screenplay, so all 38 of its rules are silent in every corpus figure;
+and thresholds are now measured against 1,082 produced screenplays, with 15 of
+them judged too strict and not yet retuned.
 
 0. **A licensed corpus is the bottleneck for three things at once**: the
    comparables bands, the genre signatures, and the precision number. All three
@@ -193,6 +202,11 @@ figure.
    injected defects). Precision on real scripts is spot-checked on a private
    corpus, not measured at scale. Closing it needs either a Creative Commons
    corpus or a human verdict per finding.
+
+   Related and cheaper: fifteen thresholds are measured as too strict and not
+   yet retuned, and 16 numeric literals sit in detector code rather than in the
+   rulebook. Both are recorded in
+   [docs/research/threshold-results.md](docs/research/threshold-results.md).
 3. **FDX ingestion.** XML with element types already named; much easier than PDF.
 4. **Story-bible extraction** (T2.5): one LLM pass building props/story-day/fact
    registries; feed existing tier-2 style checks over that structure.

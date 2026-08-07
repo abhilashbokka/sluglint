@@ -33,10 +33,10 @@ Notable changes to Sluglint. Dates are when the work landed rather than when it 
   enforces.
 - `docs/sluglint.yaml.example`: a commented starting point for the above.
 
-### Eight engine defects, found by running on 49 real drafts
+### Eleven engine defects, found by running on real corpora
 
 Full account in [docs/corpus-sweep.md](docs/corpus-sweep.md). Every one of these
-was invisible to the 208-test fixture suite.
+was invisible to the fixture suite, which was green throughout.
 
 | Rule | Before | After | Cause |
 |---|---:|---:|---|
@@ -85,6 +85,67 @@ being told it was 82 pages and too short. Every per-page rule, the runtime
 estimate, the eighths, and the dashboard carried the same error. Nothing tested
 the page count, which is how it survived; five tests now do.
 
+### Threshold measurement, and three more defects
+
+`benchmark/thresholds.py` measures every numeric parameter in the rulebook
+against a corpus, verifies each extractor against the shipped detector, and
+keeps corpora in named containers that never pool. Run on **1,082 produced
+screenplays** (all 1,276 ScriptBase alpha archives, 194 excluded by the gate),
+149,310 scenes, 882,948 action paragraphs. Full results in
+[docs/research/threshold-results.md](docs/research/threshold-results.md).
+
+Of 91 numeric parameters: 36 are decision thresholds, 26 are activation gates,
+13 cannot be measured from a document. **19 of the 36 flagged more than one unit
+in ten of produced practice.**
+
+**C021, C028, and C038 retuned** to the 90th percentile of measured practice.
+C021 permitted 0.35 distinct locations per page against a median of 0.67 and
+flagged 88% of screenplays; it is now 1.15 and flags 10%. C028 permitted 0.85
+and flagged 96%; now 0.99. C038 capped the opening tenth at 8 speaking parts
+against a median of 11 and flagged 65%; now 23. Each rule's `principle:` keeps
+the taught value and states what replaced it.
+
+**F008 measured and deliberately not retuned.** Produced screenplays run past
+its 125-page ceiling 56% of the time, on both sides of the draft-stage split. A
+produced screenplay is a later artifact than the spec the rule addresses, so
+retuning from this corpus would move the number without improving it.
+
+**F013 was measuring the scene number, not the heading.** A shooting script
+prints its number at both margins, so `148A INT. KITCHEN - DAY 148A` is ten
+characters longer than the identical heading in the spec it came from. The rule
+flagged **52% of numbered headings and 0.8% of unnumbered ones**: identical
+writing, judged differently because a production department renumbered it. The
+median heading is 29 characters either way, so the 60-character threshold was
+right all along. `overlong_heading` now strips the number first, dropping the
+rule from 14.8% of headings to 1.4%. Found by splitting the corpus on draft
+stage; invisible to its fixture, which has no scene numbers on it.
+
+**Scene pages were up to 30% long on a pre-wrapped source.**
+`Scene.estimated_pages` asked each scene individually whether the source had
+broken its own lines, and that test needs forty action lines to answer, which a
+scene almost never has. Two scenes in one document could disagree. The parser
+now decides once and stamps `Scene.prewrapped` on every scene. Affects C023,
+C029, and F047.
+
+**The linter and the dashboard disagreed about how long a scene was.** When a
+PDF stated its page count the metrics layer rescaled scenes onto it and the
+linter did not, so a rule flagging a four-page scene and the dashboard drawing
+the same scene read different numbers. `Script.reconcile_pages()` now stretches
+the scenes once at parse time and the metrics layer no longer rescales. Scenes
+sum to a stated PDF page count within 0.6%.
+
+**The corpus frame was truncated.** The GitHub contents API caps a directory
+listing at 1,000 entries and silently returns page 2 identical to page 1, so the
+first pass saw 994 of 1,276 archives and every film alphabetically after *The
+Godfather Part II* was invisible. The listing now comes from the git trees API,
+which reports truncation.
+
+Two gates were added to the harness and both earn their place: a document whose
+scene headings were never recognised comes back as one 111-page scene and passes
+a "has scenes" check while poisoning every per-page ratio (21 excluded), and a
+duplicate weights one film's habits twice (Kill Bill Volumes 1 and 2 are the
+same file in ScriptBase).
+
 ### Ingest
 
 - `ingest/__init__.py` gained `implausible_density()`. A document running above
@@ -112,7 +173,9 @@ the page count, which is how it survived; five tests now do.
   defects.
 - [docs/ocr-fallback.md](docs/ocr-fallback.md), the OCR design.
 - [docs/report-model.md](docs/report-model.md), grouped reporting.
-- [docs/research/](docs/research/), the paper-idea tracker.
+- [docs/research/](docs/research/), the paper-idea tracker, plus
+  [threshold-results.md](docs/research/threshold-results.md) with the full
+  measurement and [evidence.md](docs/research/evidence.md) as the number ledger.
 - README corrected: the test badge said 153 against an actual 208, and the
   inline benchmark numbers were a corpus behind.
 
@@ -125,4 +188,17 @@ the page count, which is how it survived; five tests now do.
 - Findings per 100 pages on the trusted corpus is **249**, and an earlier
   figure of 367 was an artifact of the page bug above.
 - F026, F060, and F061 never fire through the PDF path, because ingest rebuilds
-  clean Fountain. They are reachable only from Fountain input.
+  clean Fountain. They are reachable only from Fountain input. F060 in
+  particular cannot be measured on a text crawl, which double-spaces
+  everything; its 94.5% firing rate on ScriptBase is a fact about the corpus.
+- **Fifteen decision thresholds are measured, judged too strict, and not yet
+  retuned** (F048, C040, F059, C002, C034, C029, C020, C022, C024, F006, F007,
+  F033, F038, F042, F049). One corpus is thin evidence for moving fifteen
+  numbers at once; see [05](docs/research/05-federated-statistics.md).
+- **16 numeric literals sit in detector code rather than in the rulebook**,
+  found by an AST walk. Each is a decision no rulebook edit can reach, and four
+  of them are why the threshold harness disagrees with the linter on four rules.
+- **Telugu has 7 usable documents.** Element-scale numbers rest on 10,811 action
+  paragraphs and are worth reading; document-scale numbers rest on 7 documents
+  and are not. The blocker is OCR, not licensing: 3 of 10 unique files were
+  refused.

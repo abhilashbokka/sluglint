@@ -7,8 +7,9 @@ number, so there is one place to correct.
 Numbers here were produced on the corpus described in
 [../corpus-sweep.md](../corpus-sweep.md), which is not redistributable.
 
-Last regenerated: 2026-08-07, after the page-count fix. Every per-page
-number on this page moved by about a third; the old ones were wrong.
+Last regenerated: 2026-08-07, after the full threshold pass on 1,082 films.
+Threshold numbers from the 214-film first pass are superseded; where a figure
+changed, the old one is marked rather than deleted.
 
 ---
 
@@ -20,9 +21,13 @@ number on this page moved by about a third; the old ones were wrong.
 | Rules carrying numeric params | **54** (30 tier 1, 24 tier 2) | `[r for r in book.rules if r.params]` |
 | Profiles | 4 | `us-spec-feature`, `tv-pilot`, `shooting-script`, `indian-regional` |
 | Rules resolving per profile | 139 / 142 / 139 / 142 | `sluglint rules --check --profile X` |
-| Tests | 213 | `pytest -q` |
+| Tests | 215 | `pytest -q` |
 | pylint | 10.00/10 | `pylint src/sluglint` |
-| Clean-fixture findings | 0 errors, 0 warnings, all profiles | `test_clean_script_is_clean` |
+| Clean-fixture findings | 0 errors, 0 warnings, all profiles | `test_clean_script_stays_clean` |
+
+The clean-fixture gate excludes document-scale rules by name, because the
+fixture is 1.6 pages and F008 correctly reports that a 1.6-page draft is not a
+feature. That exemption is in the test rather than implicit.
 
 ## Recall
 
@@ -70,11 +75,16 @@ pages. Both were wrong: page counts were a third low. Do not cite them.
 
 ## The F004 distribution
 
-Two independent measurements. The second is the one to cite.
+Four measurements across three corpora and two languages. Cite the third row.
 
-**ScriptBase, 214 gated scripts, 189,078 action paragraphs:** taught value 4
-sits at **p94.5**, shipped value 7 at **p98.7**. Full table and method in
-[threshold-results.md](threshold-results.md).
+| Corpus | Paragraphs | Taught value 4 | Shipped value 7 |
+|---|---:|---:|---:|
+| PDF, 19 produced screenplays | 18,299 | p94.7 | p98.6 |
+| ScriptBase, 214 films (superseded) | 189,078 | p94.5 | p98.7 |
+| **ScriptBase, 1,082 films** | **884,746** | **p93.6** | **p98.3** |
+| Telugu, 7 drafts | 10,811 | p94.3 | p98.0 |
+
+Reproduce with `python benchmark/thresholds.py CORPUS --label NAME`.
 
 **PDF corpus, 19 produced screenplays, 18,299 paragraphs:**
 
@@ -92,11 +102,7 @@ agree to within half a percentage point at both points.
 
 Longest block observed: 1,119 lines (ScriptBase), 31 lines (Parasite, PDF).
 
-Not yet reproducible by a committed script. `benchmark/thresholds.py` is the
-missing harness and is the immediate next step for
-[01](01-thresholds-vs-practice.md).
-
-## The nine defects
+## The eleven defects
 
 | Rule | Before | After | Class |
 |---|---:|---:|---|
@@ -108,45 +114,137 @@ missing harness and is the immediate next step for
 | F011 | 424 | 240 | habit per occurrence |
 | F055 | 274 | 61 | upstream artifact |
 | ingest | n/a | 2 flagged | missing plausibility bound |
-| pages | a third low | exact | **measurement error in the harness** |
+| pages | a third low | exact | measurement error, document scale |
+| scene pages | up to 30% long | 0.5% drift | measurement error, element scale |
+| F013 | 52% of numbered headings | 0.8% | measures the wrong string |
 
-The ninth is the page counter, found later and worse than the other eight: a
-PDF's real page count was never used, and the derived estimate divided
-non-blank elements by 55 lines per page. Measured against seven scripts with
-known page counts the ratio was 0.66. It flipped three of six threshold
-verdicts in [threshold-results.md](threshold-results.md) before it was caught.
+The last three are all class 7, a measurement error that reads as a finding
+about the world, and none was found by reading findings.
+
+**Pages.** A PDF's real page count was never used, and the derived estimate
+divided non-blank elements by 55 lines per page. Measured against seven scripts
+with known page counts the ratio was 0.66. It flipped three of six threshold
+verdicts before it was caught.
+
+**Scene pages.** `Scene.estimated_pages` asked each scene whether the source had
+wrapped its own lines. That test needs forty action lines and a scene rarely has
+forty, so scenes in a wrapped document measured up to 30% long and two scenes in
+one document could disagree. Affects C023, C029, F047. Scene pages now reconcile
+to the document within 0.5%, and to a stated PDF page count within 0.6%.
+
+**F013.** Detailed in [threshold-results.md](threshold-results.md).
 
 Not yet verified by ablation that the fixture suite passes with each defect
-reinstated. That measurement is pending and is cheap.
+reinstated. Three of the eleven are already known to: the suite was green before
+and after each fix.
 
 ## Thresholds measured against practice
 
-Eleven of 54 rules with numeric params. Full table in
+Complete pass. Full tables, method, and per-container results in
 [threshold-results.md](threshold-results.md).
 
-| Rule | Ships at | Sits at | Verdict |
-|---|---:|---:|---|
-| F004 lines per action paragraph | 7 | p98.7 | holds |
-| F016 lines per dialogue block | 6 | p97.3 | holds |
-| **F013 characters per scene heading** | 60 | **p87.0** | **too strict** |
-| F017 words per parenthetical | 5 | p96.4 | holds |
-| F064 words per character cue | 5 | p99.9 | holds |
-| F037 scenes per page | 0.3 to 2.0 | 10% outside | holds |
-| C020 cast per page | 0.6 | 19% above | loose |
-| **C021 locations per page** | 0.35 | **88% above** | **band is wrong** |
-| C022 night share | 0.6 | 14% above | loose |
-| F036 dialogue share | 0.2 to 0.7 | 16% outside | loose |
-| F008 pages | 85 to 125 | 3% below, 42% above | needs a profile split |
+| Fact | Value |
+|---|---|
+| Rules carrying numeric params | 54 |
+| Individual parameters | 91 |
+| **Decision thresholds** (measured) | **36** |
+| Activation gates (share of corpus silenced, reported) | 26 |
+| Unmeasurable from a document (named, not guessed) | 13 |
+| Decision thresholds flagging over 1 unit in 10, as shipped | **19 of 36** |
+| Extractors agreeing exactly with their detector | **32 of 36** |
+| Numeric literals in detector code, not in the rulebook | **16** |
 
-Corpus: ScriptBase, 250 sampled, 36 excluded by the parse gate, **214 scripts,
-28,730 scenes, 189,078 action paragraphs**, years 1931 to 2012.
+**The four changed by this pass:**
+
+| Rule | Was | Flagged | Now | Flags |
+|---|---:|---:|---:|---:|
+| C021 locations per page | 0.35 | 88.4% | 1.15 | 10.4% |
+| C028 cuts that change location | 0.85 | 96.4% | 0.99 | 14.1% |
+| C038 parts in the opening tenth | 8 | 64.6% | 23 | 9.4% |
+| F013 characters per scene heading | 60 | 14.8% | 60, code fixed | 1.4% |
+
+F008 was measured at 55.6% outside its band and deliberately **not** retuned: a
+produced screenplay is a later artifact than the spec the rule addresses.
+
+Corpus: ScriptBase alpha, all **1,276 archives**, 194 excluded by the gate
+(170 no scenes, 21 unsegmented, 2 under 20 pages, 1 duplicate), **1,082
+documents, 149,310 scenes, 882,948 action paragraphs**, years 1926 to 2013.
+
+An earlier entry reported 11 thresholds against 214 films and put F013 at p87.
+Both the frame and that verdict were wrong: the GitHub contents API truncated
+the corpus listing at 1,000 of 1,276 archives, and F013 was measuring a scene
+number. Do not cite them.
+
+## Containers
+
+Never pooled. Each is measured and reported under its own name.
+
+| Container | Documents | Read rate | Note |
+|---|---:|---|---|
+| english-produced | 1,082 | 1,082 of 1,276 (85%) | ScriptBase alpha crawl |
+| telugu | 7 | 7 of 10 unique (70%) | PDF, all state their own page count |
+| english-pdf | 17 | 17 of 17 | includes the 7 with known page counts |
+
+## Corpus integrity
+
+| Check | english-produced | telugu |
+|---|---:|---:|
+| Sources that broke their own lines | 819 | 0 |
+| **Documents within 15% of the wrap-decision cut** | **219** | 3 |
+| Scene pages vs document, median drift | 0.33% | 0.05% |
+| Elements orphaned before the first heading, median | 0.27% | 0.05% |
+
+219 of 1,082 documents sit near the boundary where the wrap decision flips, and
+flipping it changes that document's page count by about a third. That is the
+fragility under every per-page figure on this page.
+
+## Page ground truth
+
+Seven PDFs with a known page count, all exact after the fix:
+
+| Script | True | Sluglint | Scenes sum to |
+|---|---:|---:|---:|
+| Parasite | 144 | 144 | 144.0 |
+| Her | 106 | 106 | 106.1 |
+| 2001 | 65 | 65 | 65.0 |
+| The Matrix | 133 | 133 | 133.2 |
+| Whiplash | 114 | 114 | 114.2 |
+| The Shining | 148 | 148 | 148.3 |
+| Inside Out | 130 | 130 | 130.8 |
+
+## Genre
+
+Share of the population each threshold flags, inside each genre. The result is
+negative and that is the useful part: a threshold that fails, fails everywhere.
+
+| Rule | Drama 573 | Thriller 412 | Comedy 313 | Action 264 | Crime 260 | Romance 214 |
+|---|---:|---:|---:|---:|---:|---:|
+| F004 action paragraph | 1.9% | 1.7% | 1.9% | 1.6% | 1.7% | 1.7% |
+| C021 locations per page (pre-retune) | 88.0% | 88.6% | 84.3% | 91.3% | 88.8% | 87.9% |
+| **F033 exclamations per page** | 15.4% | 12.6% | **30.4%** | 22.3% | **11.5%** | 16.4% |
+| **F036 dialogue share** | 17.1% | 12.6% | **26.2%** | 13.3% | **11.5%** | 23.8% |
+
+Only F033 and F036 show a genre gap larger than the roughly 9-point margin that
+a 214-to-573-film comparison carries. Per-genre thresholds would need about
+2,400 films per genre.
+
+## Draft stage
+
+Split on scene numbering: 284 production drafts, 798 spec-style.
+
+| Rule | Production | Spec-style | All |
+|---|---:|---:|---:|
+| **F013 heading length, before the fix** | **52.4%** | **0.8%** | 14.8% |
+| F013 heading length, after the fix | 3.1% | 0.7% | 1.4% |
+| F008 pages | 64.4% | 52.5% | 55.6% |
+| C021 locations per page | 90.1% | 87.7% | 88.4% |
 
 ## Corpus overlap
 
 | Fact | Value |
 |---|---|
 | MovieSum titles | 2,164 |
-| ScriptBase titles | 994 listed |
+| ScriptBase alpha archives | **1,276** (994 in the first pass; the listing API truncated) |
 | In both | **826** |
 | Overlap | 83% of ScriptBase, 38% of MovieSum |
 

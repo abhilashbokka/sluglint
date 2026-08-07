@@ -11,8 +11,8 @@ most useful thing any entry does is record what would falsify it.
 
 | # | Idea | Claim in one line | Evidence | Blocked on |
 |---|---|---|---|---|
-| [01](01-thresholds-vs-practice.md) | Prescriptive thresholds against practice | Quantified craft rules sit far from the distribution of produced work, measurably | **Measured**, 11 of 54 rules, F004 replicated | A harness for the other 43 |
-| [02](02-fixture-corpus-gap.md) | The fixture-corpus gap | Fixture suites miss a systematic class of rule defect that only a real corpus surfaces | **Strong**, 9 of 9 cases | Nothing |
+| [01](01-thresholds-vs-practice.md) | Prescriptive thresholds against practice | Quantified craft rules sit far from the distribution of produced work, measurably | **Complete pass**, 36 decision thresholds, 1,082 films, F004 replicated 4x | A corpus of specs, for F008 alone |
+| [02](02-fixture-corpus-gap.md) | The fixture-corpus gap | Fixture suites miss a systematic class of rule defect that only a real corpus surfaces | **Strong**, 11 of 11 cases | Nothing |
 | [03](03-ingestion-confidence.md) | Ingestion confidence as a gate | A third of real PDFs fail to parse well enough to evaluate, and nobody reports it | **Medium** | Nothing |
 | [04](04-dismissal-as-label.md) | Dismissal as label | A dismiss control produces the labelled data a precision measurement needs, for free | **None yet** | Building the UI |
 | [05](05-federated-statistics.md) | Federated corpus statistics | Distributional claims about unshareable corpora are reproducible without the corpus | **Partial** | Contributors |
@@ -37,10 +37,18 @@ number and without tier 3, which is what makes them writable now. They are
 different claims for different audiences and should stay two papers. Merging
 them would produce something that argues two things and establishes neither.
 
-**01 no longer needs n.** ScriptBase closed it: 214 gated films and 189,078
-action paragraphs, with genre and year per film. F004 replicated to within half
-a percentage point of the original 19-PDF measurement. What 01 needs now is a
-harness for the remaining 43 thresholds and a profile split.
+**01 is done except for one row.** 1,082 films, 882,948 action paragraphs, every
+parameter classified, the harness committed, the genre and draft-stage splits
+run. F004 has four measurements across three corpora and two languages. The only
+thing still open is F008, and it is open for a reason that is itself a result:
+produced screenplays are a later artifact than the drafts that rule addresses.
+
+**01's shape changed and improved.** The taxonomy came out of the pass and is a
+contribution on its own: of 91 numeric parameters, only 36 are decision
+thresholds, 26 are activation gates, and 13 cannot be measured from a document.
+A paper claiming to have measured 91 thresholds would be wrong about what it
+measured. And the genre split is a clean negative: a threshold that fails, fails
+in every genre, so genre-aware defaults would buy nothing.
 
 **Sharpen 01's framing.** The finding is not that a book is wrong. Craft
 teaching states an ideal a writer should aim at, and a linter needs a decision
@@ -56,6 +64,13 @@ mechanism that puts a shooting script online. If the scripts held up as
 exemplary are the ones violating the taught threshold, the threshold is not
 describing good practice.
 
+**The rules-are-data claim has 16 exceptions.** An AST walk of the detector
+modules finds 16 numeric literals used in a comparison or a scaling that never
+came from `rule.params`, and four of them are why the harness disagrees with the
+linter on four rules. Any paper describing a data-driven rule engine should
+report that number about itself, because it is the form the claim usually fails
+in and nobody measures it.
+
 **249 findings per 100 pages is a finding.** It stands without any labelling,
 because no screenplay contains that density of genuine defects. The better
 statistic underneath it is instances per distinct issue: 209 findings on
@@ -63,12 +78,21 @@ Pellichoopulu are 41 unique issues, a 5.1x compression, and that ratio is a
 label-free precision proxy that can be computed over the whole corpus today.
 Proposing it as a metric is a small contribution inside 02.
 
-**A ninth defect landed after the docs were written, and it is the best one.**
-Page counts were a third low for the life of the project. It flipped three of
-six threshold verdicts across successive passes of 01's table, and nothing in
-the output distinguished a broken page counter from a claim about screenwriting.
-That is a seventh class in 02 and arguably its sharpest example, because the
-first two passes produced publishable-looking tables that were wrong.
+**The best case on the board is now F013, and it belongs to both papers.** It
+was going to be a retuning: the first pass measured it too strict and the number
+was going to move. Splitting the corpus by draft stage showed it flagging 52% of
+numbered headings and 0.8% of unnumbered ones, because a shooting script prints
+its scene number at both margins and the rule measured the string as printed.
+The threshold was right; the quantity was wrong. Its fixture existed, passed
+before the fix and after it, and could never have caught this, because nobody
+writes scene numbers into a hand-made fixture.
+
+That makes F013 the exact inverse of F004 and the pair is the argument for 01:
+**a quantified rule can fail because its number is wrong, or because the thing
+it counts is wrong, and the second is invisible to every check that would catch
+the first.** For 02 it is the sharpest instance of class 7, a measurement error
+that reads as a finding about the world. Two more of that class are now in hand:
+page counts a third low, and scene pages up to 30% long.
 
 **Do not write about the three-tier architecture yet.** A quarter of the
 rulebook has never touched real input. Run tier 3 on five documents with

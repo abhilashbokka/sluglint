@@ -7,7 +7,7 @@ severity, a line number, a source, and a suggested fix. It never offers an
 opinion about whether your story is good.
 
 ![Python](https://img.shields.io/badge/python-3.10+-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-208%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-215%20passing-2ea44f)
 ![Rulebook](https://img.shields.io/badge/rulebook-150%20rules%20as%20data-E8A33D)
 ![Benchmark](https://img.shields.io/badge/injected%20defect%20recall-97%25-2ea44f)
 ![Lint](https://img.shields.io/badge/pylint-10.00%2F10-2ea44f)
@@ -85,7 +85,7 @@ sluglint diff draft1.fountain draft2.fountain    # what did I actually fix?
 sluglint stats script.pdf --html out.html         # cast, sets, schedule load
 sluglint convert script.pdf                      # see what we think the PDF says
 
-pytest -q                                        # 208 tests
+pytest -q                                        # 215 tests
 python benchmark/run.py                          # regenerate the numbers below
 ```
 
@@ -151,11 +151,26 @@ Full table, including the misses and every rule that fired as collateral, is in
 [benchmark/REPORT.md](benchmark/REPORT.md). The mutators are seeded, so the
 numbers reproduce.
 
-**What running it on 49 real drafts cost.** Fixtures and a real corpus catch
+**What running it on real corpora cost.** Fixtures and a real corpus catch
 different classes of defect. Sweeping a private corpus exposed eight engine
-defects that 208 passing tests had not, and cut the finding count by 39%. The
-account, the corpus composition, and the numbers are in
-[docs/corpus-sweep.md](docs/corpus-sweep.md).
+defects that a green test suite had not, and cut the finding count by 39%.
+Measuring every rulebook threshold against 1,082 produced screenplays exposed
+three more, including one where a rule's number was correct and the thing it
+counted was not. The account is in
+[docs/corpus-sweep.md](docs/corpus-sweep.md) and
+[docs/research/threshold-results.md](docs/research/threshold-results.md).
+
+```bash
+python benchmark/thresholds.py CORPUS --label english-produced \
+    --genres --drafts --verify 150 --out results.md
+```
+
+Of the rulebook's 91 numeric parameters, 36 are decision thresholds a document
+can answer for. **19 of those 36 flagged more than one unit in ten of produced
+practice**; three are now retuned from the measured distribution and one turned
+out to need a code fix instead. Corpora stay in named containers and never pool,
+because English and Telugu are different populations and the page-a-minute
+convention every band rests on is an English typesetting result.
 
 **Caught in v2 instead of v5.** The same harness walks one script through
 successive drafts and shows which draft introduced each defect:
@@ -494,7 +509,7 @@ src/sluglint/
   cli.py                       lint | stats | diff | rules | convert | logline
 benchmark/                     fault injection, measured recall, draft drift
 examples/                      one clean fixture, one per profile, a v1-to-v2 pair
-tests/                         208 tests
+tests/                         215 tests
 docs/                          market, business model, script licensing,
                                corpus sweep, OCR design, report model
 docs/research/                 paper-idea tracker and the evidence ledger
@@ -505,7 +520,7 @@ CHANGELOG.md                   what changed and why
 
 ## Roadmap
 
-- [x] **v0.1** three-tier engine, 150-rule rulebook, 4 profiles, draft diffing, CLI, 208 tests, fault-injection benchmark
+- [x] **v0.1** three-tier engine, 150-rule rulebook, 4 profiles, draft diffing, CLI, 215 tests, fault-injection benchmark
 - [x] **PDF ingestion** by margin geometry, feeding the same script model ([docs/pdf-ingestion.md](docs/pdf-ingestion.md))
 - [ ] **Run tier 3 on real scripts.** All 38 tier-3 rules are silent across the
       49-document sweep, because it ran with the LLM tier off. A quarter of the

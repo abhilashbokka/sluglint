@@ -68,7 +68,7 @@ ingest confidence is partly measuring the reader rather than the script.
 
 ## The eight defects
 
-None of these were visible to 208 fixture tests. A fixture is written by the
+None of these were visible to a green fixture suite. A fixture is written by the
 same person who wrote the rule, so it encodes the same assumption.
 
 ### 1. F002 matched spelling instead of meaning (2,070 to 921)
@@ -168,8 +168,12 @@ draft was told it was 82 pages and too short. Every per-page rule, the runtime
 estimate, the eighths, and the dashboard carried the same error, and so did the
 findings-per-100-pages figure on this page before it was regenerated.
 
-**Nothing tested the page count**, which is how it survived 208 passing tests.
-Five tests now do.
+**Nothing tested the page count**, which is how it survived a green suite. Six
+tests now do, and two further page defects surfaced later, from the threshold
+harness rather than from reading findings: scenes measured up to 30% long on a
+pre-wrapped source, and the linter and the dashboard disagreeing about a scene's
+length when a PDF stated its own page count. Both are in
+[research/threshold-results.md](research/threshold-results.md).
 
 ---
 
@@ -217,6 +221,14 @@ about it 45 times.
 defect, and that the second class is systematic rather than incidental. Eight of
 eight defects found this way were of one family: a rule that is correct about a
 single instance and wrong about a document.
+
+Three more defects arrived later from a different instrument, measuring rulebook
+thresholds against 1,082 produced screenplays rather than reading findings. All
+three are the same class and it is the one that generalises furthest: **a
+measurement error reads as a finding about the world**, and nothing in the
+output distinguishes the two. The sharpest is F013, where the threshold was
+correct and the string being measured was not. See
+[research/threshold-results.md](research/threshold-results.md).
 
 **Does not show:** precision. No finding in this sweep carries a human verdict.
 The 39% removed were confirmed wrong by reading, which bounds the pre-sweep

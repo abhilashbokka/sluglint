@@ -243,46 +243,6 @@ def overlong_cue(script: Script, rule: Rule):
 
 # --------------------------------------------------------------------- action
 
-@detector("first_appearance_not_capitalised")
-def first_appearance_not_capitalised(script: Script, rule: Rule):
-    """A character's first appearance in description is set in capitals.
-
-    Reported once for the document. A draft either follows this convention or
-    it does not, and a writer who does not needs one line telling them, not
-    thirty. Role cues are the trap: 'the boss' and 'the announcer' are the
-    common noun rather than the character, so an occurrence sitting behind an
-    article is skipped.
-    """
-    min_lines = int(rule.params.get("min_lines", 2))
-    floor = int(rule.params.get("min_count", 2))
-    counts = script.dialogue_counts()
-    # Only real speaking parts, so a one-line role named in passing is not held
-    # to a convention meant to flag the reader's eye to a new person.
-    names = [n for n in script.character_registry() if counts.get(n, 0) >= min_lines]
-    lowercase: list[str] = []
-    for name in sorted(names):
-        if len(name) < 4:
-            continue
-        pattern = re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)
-        for el in script.elements:
-            if el.type != ElementType.ACTION or not (m := pattern.search(el.text)):
-                continue
-            if ARTICLE_BEFORE.search(el.text[:m.start()]):
-                continue        # 'the boss' is the noun, not the character
-            if m.group(0) != m.group(0).upper():
-                lowercase.append(name)
-            break
-    if len(lowercase) >= floor:
-        listed = ", ".join(lowercase[:5]) + (", ..." if len(lowercase) > 5 else "")
-        first = lowercase[0]
-        yield finding(rule, f"{len(lowercase)} characters are not capitalised where they first "
-                            f"appear in description ({listed}).",
-                      evidence="first appearances not capitalised",
-                      suggestion=f"Capitals on the first appearance only ('{first}', then "
-                                 f"'{first.title()}' after) are the page's only signal that a "
-                                 f"reader is meeting somebody new.")
-
-
 @detector("unbalanced_quotes")
 def unbalanced_quotes(script: Script, rule: Rule):
     """An odd number of quotation marks in one scene.
@@ -455,17 +415,6 @@ def heading_trailing_punctuation(script: Script, rule: Rule):
             yield finding(rule, f"Scene heading ends in '{head[-1]}'.",
                           line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
                           suggestion=f"'{head.rstrip('.,:; ')}'")
-
-
-@detector("slash_in_heading")
-def slash_in_heading(script: Script, rule: Rule):
-    for sc in script.scenes:
-        loc = sc.location or ""
-        if "/" in loc:
-            yield finding(rule, f"Location '{loc.strip()}' joins two places with a slash.",
-                          line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
-                          suggestion="Sub-locations are separated by a spaced hyphen: "
-                                     "'INT. HOUSE - KITCHEN - DAY'.")
 
 
 @detector("int_ext_punctuation_drift")

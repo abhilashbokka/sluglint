@@ -53,14 +53,23 @@ TEXT_CONFIDENCE_FLOOR = 0.95
 SECOND_COLUMN_FLOOR = 0.15
 # Above this share of unmapped glyphs the font's character map is broken.
 DROPPED_GLYPH_FLOOR = 0.02
+# How many pages to sample when asking what the document is set in. The title
+# page is the worst possible sample (display type, its own margins, no body),
+# so this is a sample of many rather than a look at page one.
+FONT_SAMPLE_PAGES = 12
+# Share of glyphs that must sit at one advance width for the type to be
+# monospaced. MEASURED against 12 produced screenplays: the ten set in a
+# Courier variant score 0.87 to 1.00, and the two that are not (Annie Hall in
+# Times, Gone Girl in Helvetica) score 0.30 and 0.38. Nothing lands between.
+# 0.70 sits in that empty band with room either side; the 0.90 first guessed
+# here would have called Get Out proportional, and it is set in Courier.
+MONOSPACE_SHARE = 0.70
 # A feature averages well over one scene per page; a tenth of that is a floor.
+# The matching ceiling lives in `ingest/__init__.py` as MAX_SCENES_PER_PAGE,
+# because it has to count what the parser finally built rather than what this
+# module's classifier called a heading. Those two disagree exactly when
+# something has gone wrong, which is the case worth catching.
 MIN_HEADINGS_PER_PAGE = 0.1
-# And a ceiling. Across 49 real drafts nothing legitimate ran past about 2.5
-# scenes per page; the two that did were 5.7 and 6.2, and in both cases the
-# geometry had failed and ordinary lines were being read as sluglines. A
-# document that claims six scenes a page is not a document with six scenes a
-# page, so the reader says so rather than emitting hundreds of false findings.
-MAX_HEADINGS_PER_PAGE = 3.0
 # A lone asterisk in the margin of a production draft is a revision mark.
 REVISION_MARK_RE = re.compile(r"^\*+$")
 
@@ -92,6 +101,14 @@ class PdfIngest:
     pages: int
     action_x: float
     notes: list[str] = field(default_factory=list)
+    # One entry per line of `fountain`, holding the PDF page that line printed
+    # on (None for the blank lines Fountain needs and the PDF never had). The
+    # page a line fell on is something the document states, so it is carried
+    # rather than derived; see `_stamp_pages`.
+    page_map: list[int | None] = field(default_factory=list)
+    # What the file states about itself: page size, font, monospace.
+    # Kept rather than discarded; see docs/field-provenance.md.
+    source_meta: dict = field(default_factory=dict)
 
 
 def _require_pdfplumber():
@@ -263,22 +280,33 @@ def _title_page(lines: list[Line]) -> tuple[list[str], int]:
     return keys, len(front)
 
 
-def _emit(typed: list[tuple[str, Line]]) -> tuple[list[str], int]:
-    """Typed rows -> Fountain lines. Returns the text and the speeches rejoined."""
+def _emit(typed: list[tuple[str, Line]]) -> tuple[list[str], list[int | None], int]:
+    """Typed rows -> Fountain lines. -> (text, page per line, speeches rejoined).
+
+    The page list runs alongside the text so the page each row printed on
+    survives the trip out to Fountain and back. Without it the only thing left
+    downstream is a line number in a file that never had pages, and every rule
+    about a page break would have to estimate where the breaks were.
+    """
     out: list[str] = []
+    pages: list[int | None] = []
     rejoined = 0
     last_cue: str | None = None
     prev_kind: str | None = None
 
+    def write(text: str, page: int | None) -> None:
+        out.append(text)
+        pages.append(page)
+
     def blank():
         if out and out[-1] != "":
-            out.append("")
+            write("", None)
 
     for kind, ln in typed:
         text = ln.text.strip()
         if kind == "heading":
             blank()
-            out.append(text)
+            write(text, ln.page)
             last_cue = None
         elif kind == "character":
             base = CONTD_SUFFIX_RE.sub("", text).strip()
@@ -291,25 +319,79 @@ def _emit(typed: list[tuple[str, Line]]) -> tuple[list[str], int]:
                 prev_kind = kind
                 continue
             blank()
-            out.append(text)
+            write(text, ln.page)
             last_cue = base
         elif kind in {"dialogue", "parenthetical"}:
-            out.append(text)
+            write(text, ln.page)
         elif kind == "transition":
             blank()
-            out.append(text)
+            write(text, ln.page)
             last_cue = None
         else:
             if prev_kind != "action" or ln.gap_before:
                 blank()
             # Geometry says action; a line-based parser would read an all-caps
             # one as a cue. Fountain's '!' says otherwise.
-            out.append("!" + text if FORCE_ACTION_RE.match(text) else text)
+            write("!" + text if FORCE_ACTION_RE.match(text) else text, ln.page)
             last_cue = None
         prev_kind = kind
-    return out, rejoined
+    return out, pages, rejoined
 
 
+def _stamp_pages(script: Script, page_map: list[int | None]) -> None:
+    """Put each element back on the page it came off.
+
+    `parse_text` numbers its elements by line in the Fountain it was handed,
+    and that text was built one line at a time from rows that each knew their
+    page. So the line number indexes straight back into the page list. Scene
+    and script objects share these Element instances, so stamping once is
+    enough for every layer that reads them.
+    """
+    for el in script.elements:
+        index = el.line_no - 1
+        if 0 <= index < len(page_map):
+            el.page = page_map[index]
+
+
+
+
+def _source_facts(pdf, widths: list[float], heights: list[float],
+                  rotated: int) -> dict:
+    """The facts the PDF states about itself, kept rather than discarded.
+
+    None of these are findings and none are derived. They are what the file
+    says: how big its pages are, what it is set in, whether the type is
+    monospaced. Page size in particular is what makes a size measurement
+    comparable at all, because a script printed on a 5.5-inch page is set in
+    9pt and is perfectly normal.
+
+    Monospace is tested by advance width rather than by font name. An embedded
+    subset is routinely renamed to `AAAAAA+` or `F1`, which makes the name
+    useless and leaves the metric intact.
+    """
+    fonts: Counter[str] = Counter()
+    advances: Counter[float] = Counter()
+    for page in pdf.pages[:FONT_SAMPLE_PAGES]:
+        for ch in page.chars:
+            if not ch.get("text", " ").strip():
+                continue
+            fonts[str(ch.get("fontname", "")).split("+")[-1]] += 1
+            advances[round(float(ch.get("adv", 0.0)), 2)] += 1
+    facts: dict = {"pages": len(pdf.pages), "rotated_pages": rotated}
+    if widths and heights:
+        facts["page_width_in"] = round(sorted(widths)[len(widths) // 2] / POINTS_PER_INCH, 2)
+        facts["page_height_in"] = round(sorted(heights)[len(heights) // 2] / POINTS_PER_INCH, 2)
+    if fonts:
+        name, n = fonts.most_common(1)[0]
+        facts["font"] = name or "unnamed"
+        facts["font_share"] = round(n / sum(fonts.values()), 3)
+        facts["font_count"] = len(fonts)
+    if advances:
+        _, n = advances.most_common(1)[0]
+        share = n / sum(advances.values())
+        facts["monospace_share"] = round(share, 3)
+        facts["monospace"] = share >= MONOSPACE_SHARE
+    return facts
 
 
 def ingest(path: str | Path) -> PdfIngest:
@@ -321,16 +403,30 @@ def ingest(path: str | Path) -> PdfIngest:
         lines: list[Line] = []
         heights: list[float] = []
         widths: list[float] = []
+        # Rotation matters before the geometry is read, never after. A page
+        # turned 90 degrees has its axes swapped, so an indent measured off it
+        # would really be a vertical position and the classifier would report
+        # confident nonsense. pdfplumber already applies the page's own
+        # /Rotate (it normalises the box and rotates every point), so the
+        # coordinates below are upright and the correction is not ours to
+        # make. What was missing is noticing: a rotated page is worth saying
+        # out loud, because it is the shape of document that arrives scanned.
+        rotated = sum(1 for page in pdf.pages if page.rotation)
         for page in pdf.pages:
             lines.extend(_rows(page, body))
             heights.append(page.height)
             widths.append(page.width)
         n_pages = len(pdf.pages)
+        meta = _source_facts(pdf, widths, heights, rotated)
 
+    if rotated:
+        notes.append(f"{rotated} of {n_pages} pages carry a /Rotate. They were read "
+                     f"upright, but a rotated page usually means a scan or a "
+                     f"reassembled document, so check the element types below.")
     if not lines:
         notes.append("No extractable text. The PDF is probably a scan, or its "
                      "fonts carry no Unicode mapping.")
-        return PdfIngest("", n_pages, 0.0, notes)
+        return PdfIngest("", n_pages, 0.0, notes, source_meta=meta)
 
     confidence = text_confidence(lines)
     if confidence < TEXT_CONFIDENCE_FLOOR:
@@ -358,8 +454,11 @@ def ingest(path: str | Path) -> PdfIngest:
              for ln in lines[consumed:]]
     dropped = sum(1 for kind, _ in typed if kind == "drop")
     kept = [(k, ln) for k, ln in typed if k != "drop"]
-    body, rejoined = _emit(kept)
+    body, body_pages, rejoined = _emit(kept)
     out = cover + body
+    # `_title_page` only ever reads page one, and its last entry is the blank
+    # line that closes the Fountain title block.
+    page_map = [1 if key else None for key in cover] + body_pages
 
     headings = sum(1 for kind, _ in kept if kind == "heading")
     if headings < n_pages * MIN_HEADINGS_PER_PAGE:
@@ -376,7 +475,7 @@ def ingest(path: str | Path) -> PdfIngest:
     if cues == 0:
         notes.append("No character cues found at a dialogue indent. The layout "
                      "is not standard screenplay geometry.")
-    return PdfIngest("\n".join(out) + "\n", n_pages, action_x, notes)
+    return PdfIngest("\n".join(out) + "\n", n_pages, action_x, notes, page_map, meta)
 
 
 def parse_pdf(path: str | Path) -> tuple[Script, list[str]]:
@@ -386,7 +485,12 @@ def parse_pdf(path: str | Path) -> tuple[Script, list[str]]:
     # The PDF states its own page count. Nothing derived beats that, and the
     # derived estimate was a third low before this was wired through.
     script.page_count = result.pages
-    # And the scenes are stretched onto it, so a rule reading a scene's length
-    # and a dashboard drawing it never disagree.
+    script.source_meta = result.source_meta
+    # It also states which page every line fell on, so that is carried back
+    # onto the elements rather than reconstructed from a line number.
+    _stamp_pages(script, result.page_map)
+    # Scene *lengths* are still shares of the whole, so they are stretched onto
+    # the real total; a rule reading a scene's length and a dashboard drawing
+    # it must never disagree.
     script.reconcile_pages()
     return script, result.notes

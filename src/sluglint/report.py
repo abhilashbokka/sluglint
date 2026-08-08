@@ -20,12 +20,27 @@ def _sorted(findings: list[Finding]) -> list[Finding]:
     return sorted(findings, key=lambda f: (ORDER[f.severity], f.line_no or 10**9, f.rule_id))
 
 
+def _pages(script: Script) -> tuple[dict[int, int], dict[int, int]]:
+    """Real page per source line and per scene, empty when the source has none.
+
+    A PDF records the page every line printed on, so a finding can point at
+    the page a writer is looking at instead of a line number in a file that
+    was reconstructed from it. Fountain text has no pages and gets neither.
+    """
+    by_line = {el.line_no: el.page for el in script.elements if el.page is not None}
+    by_scene = {sc.index: sc.page for sc in script.scenes if sc.page is not None}
+    return by_line, by_scene
+
+
 def render_console(script: Script, findings: list[Finding], notices: list[str],
                    profile: str = "") -> str:
     header = f"Sluglint: {script.title or script.path}"
+    by_line, by_scene = _pages(script)
+    # A PDF states its length; only a text draft has to be measured.
+    about = "" if script.page_count else "~"
     lines = [
         header,
-        f"{len(script.scenes)} scenes | ~{script.estimated_pages} pages | "
+        f"{len(script.scenes)} scenes | {about}{script.estimated_pages:g} pages | "
         f"{len(script.character_registry())} speaking characters"
         + (f" | profile: {profile}" if profile else ""),
         "=" * RULE_WIDTH,
@@ -33,8 +48,14 @@ def render_console(script: Script, findings: list[Finding], notices: list[str],
     if not findings:
         lines.append("No findings. Clean draft.")
     for f in _sorted(findings):
-        loc = f"L{f.line_no}" if f.line_no else (
-            f"scene {f.scene_index + 1}" if f.scene_index is not None else "script")
+        if f.line_no:
+            loc, page = f"L{f.line_no}", by_line.get(f.line_no)
+        elif f.scene_index is not None:
+            loc, page = f"scene {f.scene_index + 1}", by_scene.get(f.scene_index)
+        else:
+            loc, page = "script", None
+        if page:
+            loc = f"{loc} p{page}"
         conf = f" (conf {f.confidence:.2f})" if f.tier == 3 else ""
         lines.append(f"{ICON[f.severity]} {f.rule_id} {f.rule_name} @ {loc}{conf}")
         lines.append(f"    {f.message}")

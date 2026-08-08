@@ -15,8 +15,8 @@ import re
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 
-LINES_PER_PAGE = 55.0  # a formatted page holds ~55 lines, blank ones included
-# Of those 55, only about 36 carry text. The parser drops blank lines, so
+# A formatted page holds about 55 lines counting the blank ones, but only about
+# 36 carry text. The parser drops blank lines, so
 # counting elements against 55 understates a script by a third. Measured
 # against seven produced screenplays whose real page count is known: Parasite
 # 38.1 text lines per page, Her 39.8, 2001 40.5, The Matrix 36.5, Whiplash
@@ -98,6 +98,11 @@ class Element:
     raw: str = ""                      # original source line, before stripping
     extension: str = ""                # CHARACTER only: V.O. / O.S. / CONT'D / ...
     dual: bool = False                 # CHARACTER only: fountain '^' simultaneous marker
+    # The 1-based page this element printed on, when the source paginated
+    # itself. A PDF knows exactly where every line fell and there is no reason
+    # to derive it; None means the source has no pages (Fountain text), and a
+    # rule about page breaks has to stay silent rather than guess.
+    page: int | None = None
 
 
 @dataclass
@@ -134,6 +139,11 @@ class Scene:
         return "\n".join(el.text for el in self.elements)
 
     @property
+    def page(self) -> int | None:
+        """The page the heading printed on, or None when the source has no pages."""
+        return next((el.page for el in self.elements if el.page is not None), None)
+
+    @property
     def estimated_pages(self) -> float:
         lines = sum(printed_lines(el.text, el.type, self.prewrapped)
                     for el in self.elements)
@@ -150,6 +160,10 @@ class Script:
     raw_text: str = ""                 # untouched source, for hygiene checks
     title_page: dict[str, str] = field(default_factory=dict)
     page_count: int | None = None      # real pages, when the source has them
+    # What the SOURCE stated about itself: page size, font, monospace share.
+    # Facts, never findings, and never derived. Empty for a text draft,
+    # which states nothing. See docs/field-provenance.md.
+    source_meta: dict = field(default_factory=dict)
     prewrapped: bool = False           # source broke its own lines; see Scene
 
     @property

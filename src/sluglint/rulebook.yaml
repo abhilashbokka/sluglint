@@ -1555,19 +1555,6 @@ rules:
       speech from a new thought, which is the defect this reports.
     source: Riley; Trottier
 
-  - id: F054
-    name: First appearance not set in capitals
-    tier: 1
-    category: format
-    severity: suggestion
-    detect: first_appearance_not_capitalised
-    params: {min_lines: 2, min_count: 2}
-    principle: >
-      A speaking character is capitalised the first time they appear in a
-      description, and in lower case every time after. It is the only signal
-      on the page that tells a reader they are meeting somebody new.
-    source: Trottier; Riley; SpecConv
-
   - id: F055
     name: Unbalanced quotation marks
     tier: 1
@@ -1665,18 +1652,6 @@ rules:
       A heading is a label rather than a sentence, so it carries no closing
       punctuation. The stray character travels into every breakdown that
       keys on the heading text.
-    source: Riley; ProdConv
-
-  - id: F063
-    name: Two places joined by a slash in a heading
-    tier: 1
-    category: format
-    severity: suggestion
-    detect: slash_in_heading
-    principle: >
-      Sub-locations are separated by a spaced hyphen, which is what tells a
-      scheduler that one place sits inside another. A slash makes two sets
-      look like one string.
     source: Riley; ProdConv
 
   - id: F064

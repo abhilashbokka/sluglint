@@ -325,6 +325,44 @@ line, character, or punctuation threshold. See
 | Density ceiling | 3.0 scenes per page |
 | Documents exceeding it before the fix | 2, at 5.7 and 6.2 |
 
+## Typography, stated by the file
+
+Read from `Script.source_meta` over 12 produced screenplays in
+`English Scripts/`, 2026-08-08. Every value below is stated by the PDF rather
+than derived; see [field-provenance.md](../field-provenance.md).
+
+| Fact | Value |
+|---|---|
+| Page size US Letter (8.5 x 11.0) | 8 of 12 |
+| Page size A4 (8.27 x 11.69) | 3 of 12: Annie Hall, Get Out, Lage Raho Munnabhai |
+| Page size **5.5 x 8.5** | **1: Moneyball** |
+| Set in a Courier variant | **10 of 12** |
+| Not Courier | 2: Annie Hall (Times-Roman), Gone Girl (Helvetica) |
+| Monospace share, the ten Courier documents | **0.87 to 1.00** |
+| Monospace share, the two others | **0.30 and 0.38** |
+| Values landing between those bands | **none** |
+| Pages carrying a /Rotate | 0 of 12 |
+
+Three consequences.
+
+**A raw point-size rule is unwritable.** Moneyball is a half-size page, so its
+type is small and its layout is ordinary. Any size check has to normalise
+against the page width the file states.
+
+**Monospace is a real test and the font name is not.** The advance-width share
+separates the two populations with an empty band from 0.38 to 0.87, while the
+font *names* include `CourierFinalDraft`, `CourierPrime`, `Courier-Bold` and
+bare `Courier`, alongside the stripped subsets recorded in the corpus sweep.
+`MONOSPACE_SHARE` was first assumed at 0.90, which called Get Out proportional
+even though it is set in Courier. Measured value is 0.70.
+
+**Two produced screenplays are not in Courier at all.** Both arrived through a
+copier or a transcription (Gone Girl's producer is a Xerox D125, Annie Hall's
+is FPDF), so the font describes the reprint rather than the draft. A typography
+rule that fires on those is reporting the scanner. This is the same class as
+the pre-Unicode Indic finding: the document is evidence about its own
+production history before it is evidence about the writing.
+
 ## Rules that never fired
 
 | Group | Count | Note |

@@ -51,6 +51,15 @@ a PDF**, and the ingester says so in its notes rather than quietly passing.
 Everything else is kept. A PDF must not get a quieter reading of the same
 rulebook than a `.fountain` file does.
 
+Dropping the printed folio is not the same as forgetting which page a line was
+on. The page number belongs to the printer; the *fact* that a line fell on page
+47 belongs to the document, and pdfplumber states it for every row. That number
+is carried out to Fountain alongside the text (`PdfIngest.page_map`) and put
+back on the elements after parsing (`Element.page`, `Scene.page`), so a rule
+that needs to know where a page break fell reads it instead of deriving it.
+A `.fountain` draft has no pages and every element's `page` stays `None`; a
+rule about pagination has to stay silent there rather than estimate.
+
 ## Back out to Fountain
 
 The ingester emits a Fountain document and hands it to the existing parser

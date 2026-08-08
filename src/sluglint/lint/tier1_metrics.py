@@ -59,13 +59,25 @@ def parenthetical_overuse(script: Script, rule: Rule):
                       suggestion="Let the line imply its own delivery.")
 
 
+def _length(script: Script) -> str:
+    """How to say the page count without overclaiming it.
+
+    A PDF prints its own page numbers and a text draft has to be measured, so
+    only one of the two is an estimate. Calling a stated number estimated is
+    the same defect as deriving one that was already on the page.
+    """
+    pages = script.estimated_pages
+    prefix = "Length" if script.page_count else "Estimated length"
+    return f"{prefix} {pages:g} pages"
+
+
 @detector("page_count")
 def page_count(script: Script, rule: Rule):
     pages = script.estimated_pages
     lo = float(rule.params.get("min_pages", 85))
     hi = float(rule.params.get("max_pages", 125))
     if script.scenes and not lo <= pages <= hi:
-        yield finding(rule, f"Estimated length {pages} pages is outside {lo:g}-{hi:g}.",
+        yield finding(rule, f"{_length(script)} is outside {lo:g}-{hi:g}.",
                       evidence="length outside feature band",
                       suggestion="Fine for a short film; a red flag for a feature spec.")
 
@@ -261,7 +273,7 @@ def pilot_page_count(script: Script, rule: Rule):
     split = float(rule.params.get("split_at", 42))
     band, label = (half, "half-hour") if pages < split else (hour, "one-hour")
     if not band[0] <= pages <= band[1]:
-        yield finding(rule, f"Estimated length {pages} pages is outside the {label} band "
+        yield finding(rule, f"{_length(script)} is outside the {label} band "
                             f"({band[0]:g}-{band[1]:g}).",
                       evidence="pilot length outside format band",
                       suggestion="Pick a format and cut or build to its band.")

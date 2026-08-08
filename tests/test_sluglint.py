@@ -139,7 +139,7 @@ def test_parser_is_forgiving_about_garbage():
 # ============================================================ rulebook
 
 def test_rulebook_rule_count():
-    assert len(BOOK.rules) == 150
+    assert len(BOOK.rules) == 148
 
 
 def test_rule_ids_and_detect_keys_are_unique():
@@ -315,8 +315,6 @@ SNIPPETS = [
      {"min_count": 2, "max_per_page": 0.0}),
     ("F053", "INT. BAR - DAY\n\nJOHN\nOne.\n\nHe drinks.\n\nJOHN (CONT'D)\nTwo.\n\n"
               "MARY\nThree.\n\nShe stands.\n\nMARY\nFour.\n", {}),
-    ("F054", "INT. BAR - DAY\n\nSarah pours. Daniel waits.\n\nSARAH\nOne.\nTwo.\n\n"
-              "DANIEL\nThree.\nFour.\n", {}),
     ("F055", 'INT. BAR - DAY\n\nHe reads the sign: "CLOSED FOR THE SEASON.\n', {}),
     ("F056", "INT. BAR - DAY\n\nHe drinks and leaves.\n", {"min_pages": 0}),
     ("F057", "INT. BAR - DAY\n\nHe drinks.\n\nCUT TO:\n\nDISSOLVE TO:\n\n"
@@ -327,7 +325,6 @@ SNIPPETS = [
     ("F060", "INT. BAR - DAY\n\nHe drinks.\n\n\n\n\nHe leaves.\n", {}),
     ("F061", "INT. BAR - DAY\r\n\r\nHe drinks.\n", {}),
     ("F062", "INT. BAR - DAY.\n\nHe drinks.\n", {}),
-    ("F063", "INT. HOUSE/KITCHEN - DAY\n\nHe cooks.\n", {}),
     ("F064", "INT. BAR - DAY\n\nJOHN AND MARY AND THE DOG\nHello.\n", {}),
     ("F065", "INT. BAR - DAY\n\nJOHN\n(angry)\n(quietly)\nFine.\n", {}),
     ("F066", "INT. BAR - DAY\n\nPOV of the street below.\n", {}),
@@ -622,9 +619,46 @@ def test_split_speech_is_rejoined_across_a_page_break():
              ("dialogue", _row("Aagu.", 180, 120, page=1)),
              ("character", _row("VIVEK (CONT’D)", 252, 100, page=2)),
              ("dialogue", _row("Thini po.", 180, 120, page=2))]
-    out, rejoined = _emit(typed)
+    out, pages, rejoined = _emit(typed)
     assert rejoined == 1
     assert out.count("VIVEK") == 1
+    # The rejoined speech keeps both halves, and the second half stays on the
+    # page it printed on. Losing that would make page two of this speech
+    # unreachable to any rule about page breaks.
+    assert len(pages) == len(out)
+    assert pages[out.index("Aagu.")] == 1
+    assert pages[out.index("Thini po.")] == 2
+
+
+def test_the_page_a_line_printed_on_survives_the_trip_through_fountain():
+    """A PDF states its pages; the Fountain bridge used to discard them.
+
+    The bridge is the risky seam: the page list is indexed by line number in a
+    document that `_emit` writes and `parse_text` re-reads, so a single stray
+    blank line on either side would silently shift every page by one.
+    """
+    from sluglint.ingest.pdf import _emit, _stamp_pages
+    typed = [("heading", _row("INT. BAR - NIGHT", 108, 100, page=4)),
+             ("action", _row("Rain on the window.", 108, 120, page=4)),
+             ("character", _row("MAYA", 252, 140, page=4)),
+             ("dialogue", _row("Shut it.", 180, 160, page=4)),
+             ("action", _row("She does not move.", 108, 100, page=5))]
+    out, pages, _ = _emit(typed)
+    script = parse_text("\n".join(out) + "\n")
+    _stamp_pages(script, pages)
+    on = {el.text: el.page for el in script.elements}
+    assert on["INT. BAR - NIGHT"] == 4
+    assert on["MAYA"] == 4
+    assert on["Shut it."] == 4
+    assert on["She does not move."] == 5
+    assert script.scenes[0].page == 4
+
+
+def test_a_fountain_draft_has_no_pages_to_report():
+    """Text has no pagination, so nothing may invent one."""
+    script = parse_text("INT. BAR - NIGHT\n\nRain on the window.\n")
+    assert all(el.page is None for el in script.elements)
+    assert script.scenes[0].page is None
 
 
 def test_numbered_extras_are_not_name_drift():

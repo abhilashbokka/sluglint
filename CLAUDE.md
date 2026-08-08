@@ -12,7 +12,7 @@ consistency engine over parsed structure (registries, timeline, fuzzy matching),
 then **T3** LLM rubric judges for soft/craft rules (Claude, one scoped rubric per
 rule).
 
-**150 rules across 4 profiles** (`us-spec-feature` default, `tv-pilot`,
+**148 rules across 4 profiles** (`us-spec-feature` default, `tv-pilot`,
 `shooting-script`, `indian-regional`). A rule with no `profiles:` key applies to
 all; one that lists them applies only to those.
 
@@ -68,9 +68,9 @@ not redistribute is one it may not hand to a trainer either. That is hard rule
 
 | Path | Role |
 |---|---|
-| `src/sluglint/rulebook.yaml` | THE PRODUCT. 150 rules, 4 profiles, genre signatures and comparable bands, all as data. A rulebook may `extends: default` and patch rules by id. |
+| `src/sluglint/rulebook.yaml` | THE PRODUCT. 148 rules, 4 profiles, genre signatures and comparable bands, all as data. A rulebook may `extends: default` and patch rules by id. |
 | `src/sluglint/indic.py` | Folds Telugu/Devanagari/Tamil names onto one comparison key so tier-2 fuzzy matching works on an abugida and across writing systems. `indic-transliteration` behind the `indic` extra, graceful without it. |
-| `src/sluglint/ingest/pdf.py` | PDF to Fountain by margin geometry. Learns the document's own margins, drops printer furniture, refuses PDFs it cannot read. `pdfplumber` behind the `pdf` extra. |
+| `src/sluglint/ingest/pdf.py` | PDF to Fountain by margin geometry. Learns the document's own margins, drops printer furniture, refuses PDFs it cannot read. Carries the real page each line printed on out to `Element.page` rather than deriving one. `pdfplumber` behind the `pdf` extra. |
 | `src/sluglint/parser.py` | Fountain-lite → `Script{Scenes[Elements]}`. Forgiving on purpose. Keeps raw lines, extensions, dual markers, scene numbers, act markers. |
 | `src/sluglint/models.py` | Dataclasses. `Finding.fingerprint` powers draft diffing. |
 | `src/sluglint/rulebook.py` | YAML loader, `Rule`, `Profile`, profile filtering. |
@@ -95,6 +95,7 @@ not redistribute is one it may not hand to a trainer either. That is hard rule
 | `benchmark/` | `run.py` injects known defects and measures recall. `local_report.py` lints a private corpus for the precision pass. `thresholds.py` measures every rulebook threshold against a corpus, per named container, and verifies each extractor against the shipped detector. `corpus/` and `local/` are both gitignored. |
 | `tests/` | 223 tests. Positive fixture per deterministic rule + clean-script gate. |
 | `docs/` | Competitive landscape, product and business model, script licensing, the corpus sweep, the OCR design, the report model, the tier-3 provider matrix. |
+| `docs/field-provenance.md` | THE INGESTION CONTRACT. Every value the linter reasons about, labelled STATED / DERIVED / ASSUMED, with the code that produces it. Also lists what the source file states and we still throw away. Read before adding a field to `Script`, `Scene` or `Element`. |
 | `docs/research/` | Paper-idea tracker, one file per idea, plus `evidence.md`: every measured number with its provenance. Cite that file rather than restating a number. |
 
 ## Hard rules for working in this repo
@@ -165,13 +166,58 @@ not redistribute is one it may not hand to a trainer either. That is hard rule
     age and pronouns off what the script writes down and answers "unspecified"
     otherwise. Guessing gender, age, region, or caste from a name would be wrong
     often and harmful when it was wrong. This is not a tuning knob.
-11. **Licence boundary is permanent.** The project is PolyForm Noncommercial:
-    free for writers and noncommercial use, paid for commercial use. Every rule
-    stays visible and stays free for noncommercial use, forever. Paid features
-    live around the engine (hosting, teams, exports) and never inside it. Never
-    move a rule behind a paywall.
+11. **Licence boundary is permanent. Tier placement is not.** The project is
+    PolyForm Noncommercial: free for writers and noncommercial use, paid for
+    commercial use. Two commitments never move, and everything else may.
 
-12. **No em dashes anywhere.** Not in prose, code comments, docstrings, or the
+    **The permanent floor.** Every rule stays visible and stays free for
+    noncommercial use, forever. The rulebook is the product and it is readable
+    by anyone, including the rules a paid tier happens to run for you. Never
+    move a rule behind a paywall, never hide a rule's text, severity, source or
+    threshold, and never ship a build whose rulebook is smaller than the public
+    one. This is the positioning, and losing it costs more than any feature
+    earns.
+
+    **Everything around the engine may be re-tiered.** Visual output, exports,
+    hosting, collaboration, conversion, batch runs and the dashboards are
+    features rather than rules, and which tier they sit in is a business
+    decision that is allowed to change as the product learns what people pay
+    for. A feature that ships free today may become paid later, and a paid one
+    may be opened up. Neither direction is a broken promise, because none of
+    them was ever the promise.
+
+    **Four conditions on moving one, so it stays honest.**
+    - **Rules are exempt.** If the thing being moved is a rule, or is the only
+      way to see a rule's output, the answer is no. Check this first.
+    - **A release already made keeps its terms.** Re-tiering applies to
+      versions from the change onward. Anyone can keep using the release they
+      have under the licence it shipped with, and the tags stay up so they can.
+    - **Say it in the release notes**, in the version where it changes, in
+      plain words. A feature that quietly stops working is a bug report from
+      someone who trusted us.
+    - **Write down why.** One line in the changelog. If the reason cannot be
+      stated without embarrassment, that is the signal, not the paperwork.
+
+    Expect this to be used rarely. It exists so a tiering decision made early,
+    with no customers and no evidence, does not have to be honoured forever
+    just because it was written down first.
+
+12. **Stated beats derived; derived beats assumed.** If the source file carries
+    a fact, READ it. Never recompute what the document already states and never
+    assume what it could have told us. Page count, the page a line printed on,
+    page size, font name and size are all stated in a PDF; deriving any of them
+    is a defect, and page numbers were estimated for exactly this reason until
+    `Element.page` was wired through. Some values genuinely have to be derived
+    (a PDF has no margin field, only a page box and glyph positions), and that
+    is fine as long as the method is written next to the code. Anything left is
+    a constant, and every constant is owed a measurement against the corpus.
+    The full per-field audit, including what the file states that we still
+    discard, lives in [docs/field-provenance.md](docs/field-provenance.md);
+    update it when you add a field. The failure this prevents is the worst kind
+    we ship: a measurement error arrives dressed as a finding about the script,
+    and the writer cannot tell the two apart.
+
+13. **No em dashes anywhere.** Not in prose, code comments, docstrings, or the
     rulebook. Python source under `src/` is ASCII and CI enforces it; the
     characters the linter hunts for, and the Indic ranges it folds, are written
     as `\uXXXX` escapes. Tests are exempt, because the Indic cases have to
@@ -214,7 +260,22 @@ them judged too strict and not yet retuned.
    yet retuned, and 16 numeric literals sit in detector code rather than in the
    rulebook. Both are recorded in
    [docs/research/threshold-results.md](docs/research/threshold-results.md).
-3. **FDX ingestion.** XML with element types already named; much easier than PDF.
+3. **FDX ingestion (free tier).** XML with element types already named; much
+   easier than PDF. No dependency needed, stdlib `xml.etree` reads it. Ingestion
+   is never a paid feature: a rule must not get a quieter reading because of the
+   file format it arrived in.
+
+   **FDX and Fountain EXPORT (tier 3).** Recovering an editable script from a
+   PDF the writer only has as a PDF is high value and low volume, which is the
+   tier-3 test, and it needs no LLM. `sluglint convert` already emits Fountain;
+   the gap to FDX is a small writer over `Script`. Two formats reach all five
+   apps, because Final Draft, WriterDuet, Celtx, Fade In and Movie Magic all
+   import FDX; writing the proprietary formats buys nothing extra. FDX's
+   `<SceneProperties Page="...">` wants the real page number, which is why
+   `Element.page` had to land first. Conversion quality is capped by the
+   classifier, so the parenthetical tolerance in
+   [docs/field-provenance.md](docs/field-provenance.md) stops being a lint edge
+   case and becomes a wrong element type in someone's editable file.
 4. **Story-bible extraction** (T2.5): one LLM pass building props/story-day/fact
    registries; feed existing tier-2 style checks over that structure.
 5. **Batch + caching for T3**: findings cache keyed by (scene text hash, rule id,

@@ -42,13 +42,27 @@ licence change onward is PolyForm.
 | | |
 |---|---|
 | **Who** | Writers comfortable in a terminal, developers, anyone with a script in git |
-| **What** | 101 rules, 4 profiles, `lint` / `diff` / `rules`, JSON output, CI exit codes, the benchmark harness, the full tier-3 judge with your own API key |
+| **What** | 148 rules, 4 profiles, `lint` / `diff` / `rules`, JSON output, CI exit codes, the benchmark harness, the full tier-3 judge with your own API key |
 | **Cost** | Tiers 1 and 2 cost nothing and never touch the network. Tier 3 runs about $0.01 to $0.05 a script, paid to Anthropic |
 | **Job** | "Tell me what is mechanically wrong with this draft before I send it" |
 | **Success** | Installs, and above all contributed rules and profiles |
 
 Never paywalled: every rule, every profile, the diff engine, the benchmark. If
 it decides what counts as a defect, it is free for a writer.
+
+**What that promise covers, and what it does not.** The floor above is
+permanent: anything that decides whether something is a defect stays free and
+stays readable, forever. Everything else is a product decision. Visual output,
+exports, conversion, hosting, collaboration and batch runs may move between
+tiers as we learn what people actually pay for, in either direction.
+
+That is deliberate rather than a hedge. The tiering here was drawn before there
+were any customers, and a guess made that early should not bind the project
+forever simply because it was written down first. Three things keep the freedom
+honest: a release already published keeps the terms it shipped with and its tag
+stays up, any move is stated in the release notes for the version it happens
+in, and the reason goes in the changelog. A feature that quietly stops working
+is a bug report from somebody who trusted us.
 
 ---
 

@@ -568,7 +568,10 @@ def test_wall_of_text_counts_one_paragraph_not_a_whole_scene():
 
 def _row(text, x0, top, page=1, width=None):
     from sluglint.ingest.pdf import Line
-    return Line(text, x0, x0 + (width if width is not None else len(text) * 6), top, page)
+    # `pos` is what the real reader computes from the page height; US Letter is
+    # 792pt, so a row at `top` sits that far down its own page.
+    return Line(text, x0, x0 + (width if width is not None else len(text) * 6), top, page,
+                pos=page + top / 792.0)
 
 
 def test_geometry_classifies_by_indent_not_by_shape():
@@ -626,8 +629,8 @@ def test_split_speech_is_rejoined_across_a_page_break():
     # page it printed on. Losing that would make page two of this speech
     # unreachable to any rule about page breaks.
     assert len(pages) == len(out)
-    assert pages[out.index("Aagu.")] == 1
-    assert pages[out.index("Thini po.")] == 2
+    assert int(pages[out.index("Aagu.")]) == 1
+    assert int(pages[out.index("Thini po.")]) == 2
 
 
 def test_the_page_a_line_printed_on_survives_the_trip_through_fountain():

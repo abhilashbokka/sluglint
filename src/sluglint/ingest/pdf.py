@@ -91,6 +91,9 @@ class Line:
     x1: float
     top: float
     page: int
+    # Where the row sits in the document, in pages plus the fraction down the
+    # page. This is what lets a scene's length be measured rather than counted.
+    pos: float = 0.0
     gap_before: bool = False   # blank vertical space above: a paragraph break
 
 
@@ -105,7 +108,7 @@ class PdfIngest:
     # on (None for the blank lines Fountain needs and the PDF never had). The
     # page a line fell on is something the document states, so it is carried
     # rather than derived; see `_stamp_pages`.
-    page_map: list[int | None] = field(default_factory=list)
+    page_map: list[float | None] = field(default_factory=list)
     # What the file states about itself: page size, font, monospace.
     # Kept rather than discarded; see docs/field-provenance.md.
     source_meta: dict = field(default_factory=dict)
@@ -136,8 +139,11 @@ def _rows(page, body_size: float) -> list[Line]:
         ws = sorted(buckets[key], key=lambda w: w["x0"])
         text = " ".join(w["text"] for w in ws).strip()
         if text:
+            top = min(w["top"] for w in ws)
+            height = float(page.height) or 1.0
             lines.append(Line(text, ws[0]["x0"], max(w["x1"] for w in ws),
-                              min(w["top"] for w in ws), page.page_number))
+                              top, page.page_number,
+                              pos=page.page_number + top / height))
     # Blank space is the only mark a paragraph break leaves in a PDF. The
     # ordinary gap between two rows of one paragraph is the leading; anything
     # meaningfully larger is the writer pressing return.
@@ -280,7 +286,7 @@ def _title_page(lines: list[Line]) -> tuple[list[str], int]:
     return keys, len(front)
 
 
-def _emit(typed: list[tuple[str, Line]]) -> tuple[list[str], list[int | None], int]:
+def _emit(typed: list[tuple[str, Line]]) -> tuple[list[str], list[float | None], int]:
     """Typed rows -> Fountain lines. -> (text, page per line, speeches rejoined).
 
     The page list runs alongside the text so the page each row printed on
@@ -289,12 +295,12 @@ def _emit(typed: list[tuple[str, Line]]) -> tuple[list[str], list[int | None], i
     about a page break would have to estimate where the breaks were.
     """
     out: list[str] = []
-    pages: list[int | None] = []
+    pages: list[float | None] = []
     rejoined = 0
     last_cue: str | None = None
     prev_kind: str | None = None
 
-    def write(text: str, page: int | None) -> None:
+    def write(text: str, page: float | None) -> None:
         out.append(text)
         pages.append(page)
 
@@ -306,7 +312,7 @@ def _emit(typed: list[tuple[str, Line]]) -> tuple[list[str], list[int | None], i
         text = ln.text.strip()
         if kind == "heading":
             blank()
-            write(text, ln.page)
+            write(text, ln.pos)
             last_cue = None
         elif kind == "character":
             base = CONTD_SUFFIX_RE.sub("", text).strip()
@@ -319,26 +325,26 @@ def _emit(typed: list[tuple[str, Line]]) -> tuple[list[str], list[int | None], i
                 prev_kind = kind
                 continue
             blank()
-            write(text, ln.page)
+            write(text, ln.pos)
             last_cue = base
         elif kind in {"dialogue", "parenthetical"}:
-            write(text, ln.page)
+            write(text, ln.pos)
         elif kind == "transition":
             blank()
-            write(text, ln.page)
+            write(text, ln.pos)
             last_cue = None
         else:
             if prev_kind != "action" or ln.gap_before:
                 blank()
             # Geometry says action; a line-based parser would read an all-caps
             # one as a cue. Fountain's '!' says otherwise.
-            write("!" + text if FORCE_ACTION_RE.match(text) else text, ln.page)
+            write("!" + text if FORCE_ACTION_RE.match(text) else text, ln.pos)
             last_cue = None
         prev_kind = kind
     return out, pages, rejoined
 
 
-def _stamp_pages(script: Script, page_map: list[int | None]) -> None:
+def _stamp_pages(script: Script, page_map: list[float | None]) -> None:
     """Put each element back on the page it came off.
 
     `parse_text` numbers its elements by line in the Fountain it was handed,
@@ -350,7 +356,10 @@ def _stamp_pages(script: Script, page_map: list[int | None]) -> None:
     for el in script.elements:
         index = el.line_no - 1
         if 0 <= index < len(page_map):
-            el.page = page_map[index]
+            pos = page_map[index]
+            if pos is not None:
+                el.page_pos = round(pos, 4)
+                el.page = int(pos)
 
 
 
@@ -461,7 +470,7 @@ def ingest(path: str | Path) -> PdfIngest:
     out = cover + body
     # `_title_page` only ever reads page one, and its last entry is the blank
     # line that closes the Fountain title block.
-    page_map = [1 if key else None for key in cover] + body_pages
+    page_map = [1.0 if key else None for key in cover] + body_pages
 
     headings = sum(1 for kind, _ in kept if kind == "heading")
     if headings < n_pages * MIN_HEADINGS_PER_PAGE:
@@ -492,8 +501,10 @@ def parse_pdf(path: str | Path) -> tuple[Script, list[str]]:
     # It also states which page every line fell on, so that is carried back
     # onto the elements rather than reconstructed from a line number.
     _stamp_pages(script, result.page_map)
-    # Scene *lengths* are still shares of the whole, so they are stretched onto
-    # the real total; a rule reading a scene's length and a dashboard drawing
-    # it must never disagree.
+    # With every element's position known, a scene's length is the distance to
+    # the next scene rather than a character count divided by a constant.
+    script.measure_scenes()
+    # Still called for the scenes measure_scenes could not reach, and harmless
+    # where it did: reconcile only rescales the counted estimate.
     script.reconcile_pages()
     return script, result.notes

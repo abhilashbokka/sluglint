@@ -103,6 +103,11 @@ class Element:
     # to derive it; None means the source has no pages (Fountain text), and a
     # rule about page breaks has to stay silent rather than guess.
     page: int | None = None
+    # Where it fell, in pages, counting the fraction down the page: 12.25 is a
+    # quarter of the way down page 12. This is what makes a scene's LENGTH
+    # measurable rather than estimated, because the distance between two of
+    # these is the distance on paper. `page` is just its whole part.
+    page_pos: float | None = None
 
 
 @dataclass
@@ -125,6 +130,10 @@ class Scene:
     # Set when the source states its own page count, so the scenes sum to the
     # real document rather than to an estimate. See `Script.reconcile_pages`.
     page_scale: float = 1.0
+    # The scene's length in pages, MEASURED off the page rather than counted
+    # from its text. Set by `Script.measure_scenes` when the source paginated
+    # itself; None otherwise, and then the estimate above is used instead.
+    page_span: float | None = None
 
     @property
     def characters(self) -> list[str]:
@@ -144,7 +153,22 @@ class Scene:
         return next((el.page for el in self.elements if el.page is not None), None)
 
     @property
+    def start_pos(self) -> float | None:
+        """Where the scene begins, in pages including the fraction."""
+        return next((el.page_pos for el in self.elements if el.page_pos is not None), None)
+
+    @property
     def estimated_pages(self) -> float:
+        """Measured when the source paginated itself, counted otherwise.
+
+        `page_span` is the distance on paper between this scene's first line
+        and the next scene's first line, which is the scene's length rather
+        than a proxy for it. Without it the length is recovered by wrapping
+        each element to its column and dividing by the lines a page carries,
+        then stretched onto the document's real total.
+        """
+        if self.page_span is not None:
+            return self.page_span
         lines = sum(printed_lines(el.text, el.type, self.prewrapped)
                     for el in self.elements)
         return round(lines / BODY_LINES_PER_PAGE * self.page_scale, 2)
@@ -179,6 +203,36 @@ class Script:
         lines = sum(printed_lines(el.text, el.type, self.prewrapped)
                     for el in self.elements)
         return round(lines / BODY_LINES_PER_PAGE, 1)
+
+    def measure_scenes(self) -> None:
+        """Measure each scene's length off the page, when the page is known.
+
+        A scene runs from its own first line to the next scene's first line,
+        and both of those are positions the document states. Subtracting them
+        gives the length on paper, which is the thing every scene-length rule
+        and the dashboard were previously approximating by counting characters
+        and dividing by a constant.
+
+        The last scene has no successor, so it ends at the last line of the
+        document. That understates it by whatever sits below that line on the
+        final page, which is at most a few lines and only ever on one scene.
+
+        Does nothing for a source with no pages. `reconcile_pages` still
+        handles that case.
+        """
+        starts = [sc.start_pos for sc in self.scenes]
+        if not any(s is not None for s in starts):
+            return
+        last = max((el.page_pos for el in self.elements if el.page_pos is not None),
+                   default=None)
+        for i, scene in enumerate(self.scenes):
+            start = starts[i]
+            if start is None:
+                continue
+            nxt = next((s for s in starts[i + 1:] if s is not None), None)
+            end = nxt if nxt is not None else last
+            if end is not None and end >= start:
+                scene.page_span = round(end - start, 2)
 
     def reconcile_pages(self) -> None:
         """Scale every scene so the scenes sum to the document's real length.

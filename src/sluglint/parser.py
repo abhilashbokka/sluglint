@@ -5,21 +5,31 @@ Script. Intentionally forgiving: malformed input still parses, because the
 lint tiers are what report the problems. A parse failure on bad formatting
 would hide the very defects Sluglint exists to report.
 
-v1 replaces this with PDF/FDX ingestion feeding the same models.
+PDF ingestion feeds the same models through `sluglint.ingest`; FDX is next.
 """
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-from .models import Element, ElementType, Scene, Script
+from .models import Element, ElementType, Scene, Script, already_wrapped
 
-HEADING_RE = re.compile(r"^(INT\.?/EXT|I/E|INT|EXT|EST)[.\s]", re.IGNORECASE)
+# Both orders of the combined prefix. A draft that writes 'EXT./INT. HILL HOUSE'
+# would otherwise match on 'EXT' alone and carry '/INT.' into the location name,
+# which then reads as a different set from the same room written the other way.
+HEADING_RE = re.compile(r"^(INT\.?/EXT|EXT\.?/INT|I/E|E/I|INT|EXT|EST)[.\s]", re.IGNORECASE)
 TRANSITION_RE = re.compile(
     r"^(?:[A-Z][A-Z ']*TO:|FADE (?:IN:|OUT\.?|TO BLACK\.?)|SMASH CUT\.?|CUT TO BLACK\.?)$"
 )
+# Both apostrophes. Final Draft writes CONT'D with a typographic one,
+# and a cue whose extension survives normalisation becomes a second character
+# in every registry, which then reads as name drift on a real script.
 EXTENSION_RE = re.compile(
-    r"\s*\((V\.?O\.?|O\.?S\.?|O\.?C\.?|CONT'?D|VOICE ?OVER|OFF ?SCREEN|OFF|PRE-?LAP|"
+    # V/O and O/S are as common in the wild as V.O. and O.S., and a cue whose
+    # extension is not recognised carries it into the character's name, which
+    # puts the same person in the registry twice.
+    r"\s*\((V\.?O\.?|V\s*/\s*O|O\.?S\.?|O\s*/\s*S|O\.?C\.?|O\s*/\s*C|"
+    r"CONT['\u2019]?D|VOICE ?OVER|OFF ?SCREEN|OFF|PRE-?LAP|"
     r"FILTERED|SUBTITLED|INTO PHONE|ON PHONE)\)\s*",
     re.IGNORECASE,
 )
@@ -123,6 +133,7 @@ def parse_text(text: str, path: str = "<memory>") -> Script:
     current_scene: Scene | None = None
     current_act: str | None = None
     in_dialogue_for: str | None = None
+    paren_depth = 0            # a parenthetical still open from an earlier line
     prev_blank = True
 
     for i, raw in enumerate(lines):
@@ -133,6 +144,7 @@ def parse_text(text: str, path: str = "<memory>") -> Script:
         if not stripped:
             prev_blank = True
             in_dialogue_for = None
+            paren_depth = 0
             continue
 
         # Title page (key: value pairs before the first scene)
@@ -163,9 +175,14 @@ def parse_text(text: str, path: str = "<memory>") -> Script:
                 current_act = marker_text
             prev_blank = False
             in_dialogue_for = None
+            paren_depth = 0
             continue
 
-        forced_heading = stripped.startswith(".") and not stripped.startswith("..")
+        # Fountain's forced heading is a '.' on a fresh line. Both guards matter:
+        # a speech that wraps onto a line beginning with an ellipsis or a stray
+        # full stop is dialogue, and reading it as a slugline invents a scene.
+        forced_heading = (stripped.startswith(".") and not stripped.startswith("..")
+                          and prev_blank and in_dialogue_for is None)
         # A shooting-script slugline leads with its scene number ('14 INT. BAR - DAY'),
         # so strip that before asking whether the line is a heading at all.
         unnumbered, _ = split_scene_number(stripped)
@@ -185,13 +202,28 @@ def parse_text(text: str, path: str = "<memory>") -> Script:
             current_scene.elements.append(el)
             prev_blank = False
             in_dialogue_for = None
+            paren_depth = 0
             continue
 
-        if TRANSITION_RE.match(stripped):
+        # Fountain's forced-action marker. An all-caps action line ('THE KITCHEN',
+        # 'ANGLE ON THE DOOR') is shaped exactly like a character cue, so a
+        # writer, or the PDF ingester reading indents, can say which it is.
+        if stripped.startswith("!"):
+            el = Element(ElementType.ACTION, stripped[1:].strip(), line_no, scene_index, raw=raw)
+            in_dialogue_for, paren_depth = None, 0
+        elif TRANSITION_RE.match(stripped):
             el = Element(ElementType.TRANSITION, stripped, line_no, scene_index, raw=raw)
-            in_dialogue_for = None
+            in_dialogue_for, paren_depth = None, 0
         elif in_dialogue_for is not None:
-            etype = ElementType.PARENTHETICAL if stripped.startswith("(") else ElementType.DIALOGUE
+            # A wide parenthetical wraps onto the next line, and only its first
+            # line starts with a bracket. Tracking the depth keeps '(getting on
+            # a bullock-cart / outside) Chalo.' as one parenthetical plus one
+            # speech instead of a speech with a stray bracket in it.
+            if paren_depth > 0 or stripped.startswith("("):
+                etype = ElementType.PARENTHETICAL
+                paren_depth = max(0, paren_depth + stripped.count("(") - stripped.count(")"))
+            else:
+                etype = ElementType.DIALOGUE
             el = Element(etype, stripped, line_no, scene_index,
                          character=in_dialogue_for, raw=raw)
         elif _is_character_cue(raw, prev_blank, next_line):
@@ -208,5 +240,11 @@ def parse_text(text: str, path: str = "<memory>") -> Script:
             current_scene.elements.append(el)
         prev_blank = False
 
-    return Script(path=path, title=title, scenes=scenes, elements=elements,
-                  total_lines=len(lines), raw_text=text, title_page=title_page)
+    script = Script(path=path, title=title, scenes=scenes, elements=elements,
+                    total_lines=len(lines), raw_text=text, title_page=title_page)
+    # One decision for the document, stamped everywhere it is needed. A scene
+    # cannot make this call for itself and the two answers must never differ.
+    script.prewrapped = already_wrapped(elements)
+    for scene in scenes:
+        scene.prewrapped = script.prewrapped
+    return script

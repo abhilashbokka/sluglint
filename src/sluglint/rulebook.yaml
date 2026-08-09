@@ -1,4 +1,4 @@
-# Sluglint rulebook v0.1 (101 rules)
+# Sluglint rulebook v0.2 (150 rules)
 #
 # THE PRODUCT LIVES HERE. Every rule is DATA that the engine dispatches on.
 #
@@ -358,13 +358,21 @@ rules:
     source: Riley; SpecConv
 
   # ---- style metrics --------------------------------------------------
+  # THRESHOLD SET FROM MEASUREMENT, not from the taught ideal. Across 18,299
+  # action paragraphs in 19 produced screenplays the distribution runs: 90% at
+  # three lines or fewer, 95% at four, 98% at six, 99% at eight. Four lines is
+  # therefore the 95th percentile of what gets shot, so flagging it called one
+  # paragraph in eighteen a defect and buried the genuine walls. Seven flags
+  # the top 1.4%, which is what a reader actually balks at. A writer who wants
+  # the stricter convention sets it in .sluglint.yaml:
+  #     params: {F004: {max_lines: 4}}
   - id: F004
     name: Wall-of-text action block
     tier: 1
     category: format
     severity: warning
     detect: long_action_block
-    params: {max_lines: 4}
+    params: {max_lines: 7}
     principle: >
       Action paragraphs longer than about four lines read as a wall of text
       and slow the read; break them at each new visual beat.
@@ -418,7 +426,13 @@ rules:
     principle: >
       A feature spec is expected to land roughly between 90 and 120 pages at
       one page per minute of screen time; well outside that band invites an
-      automatic pass.
+      automatic pass. Deliberately NOT retuned from the corpus, unlike C021,
+      C028, and C038. Produced screenplays run past this ceiling more than
+      half the time, but a produced screenplay is a later artifact than the
+      draft this rule addresses: scripts are bought at 120 pages and shot at
+      150. Measuring the wrong population would have moved the number without
+      improving it. This band needs a corpus of specs as submitted, which is
+      the one corpus nobody can obtain.
     source: Field; SpecConv
 
   - id: F009
@@ -427,6 +441,7 @@ rules:
     category: format
     severity: suggestion
     detect: scene_numbers
+    params: {profile_mismatch_share: 0.6}
     profiles: [us-spec-feature, tv-pilot, indian-regional]
     principle: >
       Scene numbers belong to shooting scripts. A spec draft with numbered
@@ -878,11 +893,15 @@ rules:
     category: production
     severity: suggestion
     detect: location_load
-    params: {max_per_page: 0.35, min_pages: 20}
+    params: {max_per_page: 1.15, min_pages: 20}
     principle: >
       Distinct locations drive company moves, and company moves drive
       schedule. Counting them early turns an invisible cost into a number.
-    source: ProdConv
+      The conventional figure of 0.35 per page sat near the 5th percentile of
+      produced practice and flagged 88% of 1,082 screenplays, so it described
+      almost every document rather than an unusual one. The value here is the
+      90th percentile of that corpus; the median runs 0.67.
+    source: ProdConv; measured, see docs/research/threshold-results.md
 
   - id: C022
     name: Night-scene share
@@ -985,6 +1004,7 @@ rules:
     tier: 3
     category: craft
     severity: warning
+    scope: window
     principle: >
       Action lines may only contain what a camera can photograph or a
       microphone can record. Thoughts, memories, backstory, and feelings that
@@ -1001,6 +1021,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Characters should not state their emotions, motives, or the subtext
       outright. Dialogue works when what is said sits at an angle to what is
@@ -1015,6 +1036,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Backstory and world information should be released only when the scene
       needs it, ideally inside conflict, and never as characters reciting
@@ -1029,6 +1051,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Enter each scene at the last possible moment and leave at the first;
       greetings, arrivals, and goodbyes that carry no conflict are dead
@@ -1043,6 +1066,7 @@ rules:
     tier: 3
     category: structure
     severity: suggestion
+    scope: document
     principle: >
       Across any sustained stretch, the protagonist should be making choices
       that cause the next scene, not merely receiving events. Watching things
@@ -1057,6 +1081,7 @@ rules:
     tier: 3
     category: structure
     severity: suggestion
+    scope: document
     principle: >
       Something must disrupt the protagonist's ordinary world within roughly
       the first ten to fifteen pages; if the status quo survives past that,
@@ -1068,6 +1093,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       Cover the cue names and you should still know who is speaking. If any
       two characters' lines could be swapped without loss, their voices are
@@ -1079,6 +1105,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       Every prop, detail, or aside the script spends words on creates an
       expectation of payoff. Flag conspicuous details that never return and
@@ -1090,6 +1117,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       A scene should end in a different state from the one it began in:
       someone learns something, loses something, or commits to something. A
@@ -1104,6 +1132,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Dialogue built as a run of questions answered directly is an interview,
       not a scene. Characters who want something deflect, change the subject,
@@ -1118,6 +1147,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       When a line describes an action the audience has just seen, the script
       is paying twice for the same beat. Trust the image.
@@ -1131,6 +1161,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       A fact the audience already has does not need restating in a later
       scene unless something about the restatement is new. Repetition without
@@ -1142,6 +1173,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       A long speech holds only when someone in the scene is trying to stop
       it. An uninterrupted monologue delivered to a silent listener is the
@@ -1153,6 +1185,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: document
     principle: >
       A first appearance should give the reader one specific thing to hold
       onto: a behaviour, an object, a way of occupying the space. A name and
@@ -1167,6 +1200,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       People rarely use each other's names mid-conversation. Names sprinkled
       through dialogue are the writer reminding the reader who is speaking,
@@ -1181,6 +1215,7 @@ rules:
     tier: 3
     category: production
     severity: suggestion
+    scope: window
     principle: >
       Physical description should be limited to what the story actually
       requires. Detail beyond that closes casting doors for no dramatic
@@ -1192,6 +1227,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Action lines describe behaviour, not the reading of a line. Adverbs of
       delivery placed in action ("he says, bitterly") direct the actor from
@@ -1206,6 +1242,7 @@ rules:
     tier: 3
     category: craft
     severity: suggestion
+    scope: window
     principle: >
       Voice-over is a legitimate device when it says what the images cannot.
       When it narrates what is already on screen, it replaces the scene
@@ -1217,6 +1254,7 @@ rules:
     tier: 3
     category: structure
     severity: suggestion
+    scope: document
     profiles: [tv-pilot]
     principle: >
       An act break should land on a reversal, a revelation, or a decision
@@ -1229,6 +1267,7 @@ rules:
     tier: 3
     category: language
     severity: suggestion
+    scope: document
     profiles: [indian-regional]
     principle: >
       In a code-mixed script, how much a character switches languages is
@@ -1243,6 +1282,7 @@ rules:
     tier: 3
     category: language
     severity: warning
+    scope: window
     principle: >
       Action is written in present tense, always. Past-tense action lines
       break the convention that a screenplay describes what the audience is
@@ -1257,17 +1297,28 @@ rules:
     tier: 3
     category: language
     severity: warning
+    scope: window
     principle: >
       Flag probable misspellings and typos, but respect screenwriting style:
       sentence fragments, ALL-CAPS emphasis on sounds/props, and invented
       proper nouns used consistently are not errors.
     source: SpecConv
+    profile_notes:
+      indian-regional: >
+        Dialogue here is routinely Telugu, Hindi, or Tamil written in Latin
+        letters (Tenglish, Hinglish). There is no standard romanisation, so a
+        word absent from an English dictionary is the normal case and never a
+        typo on its own. Judge only the English prose in action lines and
+        sluglines. Within transliterated dialogue, flag nothing unless the
+        same word is spelled two ways in the same speech, which is
+        inconsistency rather than spelling.
 
   - id: L003
     name: Passive voice in action lines
     tier: 3
     category: language
     severity: suggestion
+    scope: window
     principle: >
       Action should name the agent and the verb in that order. The passive
       voice hides who is doing what, which is exactly the information a
@@ -1282,6 +1333,7 @@ rules:
     tier: 3
     category: language
     severity: suggestion
+    scope: window
     principle: >
       An adverb attached to a weak verb is a stronger verb waiting to be
       found. "Walks slowly" is not a shot; "drags" is.
@@ -1295,6 +1347,7 @@ rules:
     tier: 3
     category: language
     severity: suggestion
+    scope: window
     principle: >
       "Begins to", "starts to", and "proceeds to" put a frame between the
       reader and the action. The camera does not photograph beginning to
@@ -1309,6 +1362,7 @@ rules:
     tier: 3
     category: language
     severity: suggestion
+    scope: window
     principle: >
       Similes, metaphors, and authorial asides that cannot be photographed
       belong to prose. A screenplay's description is a shot list in
@@ -1323,6 +1377,7 @@ rules:
     tier: 3
     category: language
     severity: suggestion
+    scope: window
     principle: >
       Smell, taste, and temperature reach the audience only through what they
       can see or hear. Describe the behaviour the sensation causes, not the
@@ -1337,6 +1392,7 @@ rules:
     tier: 3
     category: language
     severity: warning
+    scope: window
     principle: >
       Dialogue in a language other than the script's primary language must be
       marked with a parenthetical naming the language, a subtitle note, or a
@@ -1345,3 +1401,805 @@ rules:
     examples:
       - bad: "RAJU: Nuvvu ekkada unnavu?"
         good: "RAJU (in Telugu, subtitled): Nuvvu ekkada unnavu?"
+    profile_notes:
+      indian-regional: >
+        The script's own language is the regional one, so transliterated
+        dialogue is the default and needs no marking. What needs marking here
+        is the reverse: a switch into a language the audience is not assumed
+        to follow, and any dialogue the film intends to subtitle on screen.
+
+  # ---- profile: production load (added with the metrics layer) ---------
+  - id: C028
+    name: Company moves relative to scene count
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: company_moves
+    params: {max_ratio: 0.99, min_scenes: 25}
+    principle: >
+      A company move is a change of location between consecutive scenes, and
+      it is the single biggest lever on a shooting day. When almost every
+      scene sits at a different place from the one before it, the schedule is
+      being written by scene order rather than by geography. Measured across
+      1,082 produced screenplays the median is 0.96, so "almost every scene"
+      turns out to describe almost every screenplay: the old 0.85 flagged 96%
+      of them. The value here is the 90th percentile, and the honest reading
+      is that this measure barely separates one draft from another.
+    source: ProdConv; measured, see docs/research/threshold-results.md
+
+  - id: C029
+    name: Set used for a single fraction of a page
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: single_use_location
+    params: {max_pages: 0.5, min_locations: 12}
+    principle: >
+      A location that carries less than half a page still costs a scout, a
+      permit, a move, and a lighting setup. Several of them together is
+      usually a sequence that could play in one place already in the script.
+    source: ProdConv
+
+  - id: C030
+    name: Character carried by a single long scene
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: one_scene_wonder
+    params: {min_lines: 12}
+    principle: >
+      A speaker with a substantial part confined to one scene is a full
+      casting process, a fitting, and a day for a role the audience meets
+      once. Worth knowing before the part is offered.
+    source: ProdConv
+
+  - id: F047
+    name: Scene runs under an eighth of a page
+    tier: 1
+    category: production
+    severity: suggestion
+    detect: sliver_scene
+    params: {min_eighths: 1, min_scenes: 20}
+    principle: >
+      A scene shorter than one eighth of a page still takes a slugline, a
+      scene number, a strip on the board, and a setup. Some are deliberate
+      cutaways; a run of them usually wants to be one scene with a montage
+      header.
+    source: ProdConv
+
+  - id: F048
+    name: Dialogue with no action anywhere in the scene
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: unstaged_scene
+    params: {min_lines: 8}
+    principle: >
+      A scene of pure speech with no action line gives the director no
+      staging, the actors no business, and the reader no picture. Even one
+      line of what the room is doing anchors it.
+    source: Trottier; McKee
+
+  # =====================================================================
+  # TIER 1: PROSE INSIDE THE ELEMENTS
+  # How the writing is set, as opposed to which element it is. Handlers in
+  # lint/tier1_style.py.
+  # =====================================================================
+
+  - id: F049
+    name: Dialogue set entirely in capitals
+    tier: 1
+    category: format
+    severity: warning
+    detect: dialogue_in_caps
+    params: {min_words: 3, max_per_page: 0.5, min_count: 5}
+    principle: >
+      A speech is set in sentence case whatever its volume. Capitals in
+      dialogue are a volume knob the page does not have, they survive no
+      format conversion intact, and the actor decides how loud the line is.
+      Measured as a rate, because plenty of produced drafts do this on purpose
+      and the habit is the note rather than each instance.
+    source: Trottier; Riley
+
+  - id: F050
+    name: Numeral left in dialogue
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: numerals_in_dialogue
+    params: {max_per_page: 0.5, min_count: 5}
+    principle: >
+      A number an actor speaks is written the way it is spoken. Years, clock
+      times, and codes stay as digits because those are read as themselves;
+      a bare quantity is spelled out. Measured as a rate, because a script
+      about a season has numbers in it and the habit is the note, not each
+      instance.
+    source: Riley; SpecConv
+
+  - id: F051
+    name: Parenthetical that stages an action
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: stage_direction_parenthetical
+    principle: >
+      A parenthetical says how a line is delivered. Movement, business, and
+      anything the camera would see belong in an action line, where the
+      director and the actor can both find them.
+    source: Trottier; Riley
+
+  - id: F052
+    name: Beat and pause parentheticals overused
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: beat_overuse
+    params: {max_per_page: 0.5, min_count: 5}
+    principle: >
+      A beat that changes the scene belongs in the action, where it can be
+      played. Used as punctuation between every other line it stops meaning
+      anything and starts costing the reader a line of page.
+    source: Trottier; Goldman
+
+  - id: F053
+    name: (CONT'D) marked on some resumed speeches and not others
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: missing_contd
+    principle: >
+      When action interrupts a speech and the same character carries on, the
+      second cue is marked (CONT'D). A draft that never marks any has made a
+      choice the software will undo on the next repagination. A draft that
+      marks some and not others leaves a reader unable to tell a resumed
+      speech from a new thought, which is the defect this reports.
+    source: Riley; Trottier
+
+  - id: F055
+    name: Unbalanced quotation marks
+    tier: 1
+    category: format
+    severity: warning
+    detect: unbalanced_quotes
+    principle: >
+      A quote opened and never closed swallows everything after it in any
+      tool that reads quoted spans, and it is invisible while reading because
+      the eye supplies the missing mark. The sibling of the bracket check.
+    source: SpecConv
+
+  - id: F056
+    name: Script does not close on an ending marker
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: no_ending_marker
+    params: {min_pages: 5}
+    principle: >
+      A screenplay ends on FADE OUT, THE END, or an equivalent. Without one,
+      a reader cannot tell a finished draft from a truncated file, and that
+      is the exact doubt a submission cannot afford.
+    source: Trottier; SpecConv
+
+  - id: F057
+    name: Two transitions in a row
+    tier: 1
+    category: format
+    severity: warning
+    detect: consecutive_transitions
+    principle: >
+      One cut takes one transition. A pair stacked together is a leftover
+      from an edit, and it makes the page ambiguous about where the scene
+      actually breaks.
+    source: Riley
+
+  - id: F058
+    name: Title or super card written without a colon
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: title_card_format
+    principle: >
+      Text that appears on screen is introduced with SUPER:, TITLE:, or
+      CHYRON: and the words that appear. Without the colon the line reads as
+      description of a thing in the room rather than as text over the image.
+    source: Riley; ProdConv
+
+  - id: F059
+    name: Montage header with nothing under it
+    tier: 1
+    category: format
+    severity: warning
+    detect: montage_without_items
+    params: {min_items: 2}
+    principle: >
+      A montage is a list of shots. A header with one beat or none under it
+      is either an ordinary scene wearing the wrong hat or a sequence that
+      never got written.
+    source: Riley; ProdConv
+
+  - id: F060
+    name: Run of blank lines
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: blank_line_run
+    params: {max_blank: 2}
+    principle: >
+      One blank line separates two elements. Longer gaps are page spacing
+      that the software adds and removes on its own, and they move every
+      element on the page when it does.
+    source: SpecConv
+
+  - id: F061
+    name: Mixed line endings
+    tier: 1
+    category: format
+    severity: warning
+    detect: mixed_line_endings
+    principle: >
+      A file that carries both CRLF and LF endings breaks diffs, breaks some
+      readers, and renders stray endings as blank lines in others. Normalise
+      to one.
+    source: SpecConv
+
+  - id: F062
+    name: Scene heading ends in punctuation
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: heading_trailing_punctuation
+    principle: >
+      A heading is a label rather than a sentence, so it carries no closing
+      punctuation. The stray character travels into every breakdown that
+      keys on the heading text.
+    source: Riley; ProdConv
+
+  - id: F064
+    name: Character cue running to several words
+    tier: 1
+    category: format
+    severity: warning
+    detect: overlong_cue
+    params: {max_words: 5}
+    principle: >
+      A cue is a name. Anything longer sitting in the cue position is almost
+      always an action line that lost its capitals, and it enters the
+      character registry as a person who does not exist.
+    source: Trottier; ProdConv
+
+  - id: F065
+    name: Two parentheticals with no line between them
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: double_parenthetical
+    principle: >
+      A parenthetical modifies the line under it. Two in a row means the
+      first one modifies nothing, and the actor has to guess which of them
+      applies.
+    source: Trottier
+
+  - id: F066
+    name: POV with nobody to own it
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: pov_without_owner
+    principle: >
+      A point of view belongs to somebody. Unowned, it tells the camera crew
+      nothing and the reader less, and it is usually a shot the description
+      could carry on its own.
+    source: Riley
+
+  - id: F067
+    name: Sound written as an SFX tag
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: sound_cue_tag
+    principle: >
+      Sound is written into the description in capitals, where it reads as
+      part of the scene. SFX: is a post-production label and does not belong
+      in a screenplay element.
+    source: Riley; ProdConv
+
+  - id: F068
+    name: INT and INT. used in the same document
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: int_ext_punctuation_drift
+    principle: >
+      Whichever prefix style a script uses, it uses one. Breakdown software
+      keys on the exact string, so a document carrying both produces two
+      populations of scene it cannot reconcile.
+    source: Riley; ProdConv
+
+  - id: F069
+    name: Extension with no space before it
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: cue_extension_spacing
+    principle: >
+      An extension is separated from the name by a space. Written flush
+      against it, the whole string enters the registry as the character's
+      name and the same person appears twice.
+    source: Riley
+
+  - id: F070
+    name: Spacing around punctuation
+    tier: 1
+    category: format
+    severity: suggestion
+    detect: punctuation_spacing
+    params: {min_count: 3}
+    principle: >
+      A space before a comma or a full stop, or none after one, is almost
+      always the residue of a PDF or OCR round trip rather than a choice. It
+      is invisible while reading and obvious to every parser downstream.
+    source: SpecConv
+
+  - id: F071
+    name: Word written twice in a row
+    tier: 1
+    category: format
+    severity: warning
+    detect: repeated_word
+    principle: >
+      A doubled word is a typo the eye reads straight past, which is exactly
+      why it survives to a submitted draft. Grammatical doubles are
+      excluded.
+    source: SpecConv
+
+  - id: F072
+    name: Speaker attributed the way a play does
+    tier: 1
+    category: format
+    severity: warning
+    detect: playscript_speaker_style
+    principle: >
+      A screenplay cues a speaker on its own line above the speech, never as
+      NAME: text on one line. The stage and transcript form leaves every
+      speech invisible to the character registry, so cast counts and
+      breakdowns come out empty.
+    source: Trottier; Riley
+
+  # =====================================================================
+  # TIER 2: THE CAST AS A GRAPH, AND REFERENCE DECAY
+  # Handlers in lint/tier2_story.py.
+  #
+  # The reference-decay rules below check one thing only: does the document
+  # come back to what it introduced? That is internal consistency, the same
+  # class as an unpaid prop, and it is verifiable by pointing at the page.
+  # Whether a story RESOLVES well is a judgement this project does not make,
+  # in any tier.
+  # =====================================================================
+
+  - id: C031
+    name: One name written with two different apostrophes
+    tier: 2
+    category: consistency
+    severity: error
+    detect: apostrophe_drift
+    principle: >
+      A typewriter apostrophe and a typographic one look identical on paper
+      and are different characters to every registry in the pipeline. One
+      character or one set then counts as two, in the cast list, in the
+      schedule, and in every check this linter runs. Nobody catches it by
+      reading and the fix is one find and replace.
+    source: ProdConv
+
+  - id: C032
+    name: Speaking part who never shares a scene
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: isolated_character
+    params: {min_lines: 2, min_cast: 3}
+    principle: >
+      A relationship the audience never watches being played is a
+      relationship that has only been described. A speaking part who is
+      never in a room with another speaking part is usually a voice-over or
+      a phone call whose extension was never written.
+    source: ProdConv; McKee
+
+  - id: C033
+    name: Cast splits into groups who never meet
+    tier: 2
+    category: consistency
+    severity: warning
+    detect: disconnected_cast
+    params: {min_group: 2, min_cast: 5}
+    principle: >
+      Read as a graph of who shares a scene with whom, a cast should connect.
+      Two groups with no scene between them are two casts, which is usually
+      two drafts that were merged or a strand that needs one shared scene to
+      join the film it is in.
+    source: ProdConv
+
+  - id: C034
+    name: Set carried for several scenes then abandoned
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: dropped_location
+    params: {min_scenes: 3, last_seen_before: 0.6}
+    principle: >
+      A location built for three or more scenes and then never returned to
+      or even named again is either a thread that stopped or a set that two
+      later scenes could have moved into. Both are worth knowing before it
+      is scouted.
+    source: ProdConv
+
+  - id: C035
+    name: Capitalised thing named repeatedly then dropped
+    tier: 2
+    category: consistency
+    severity: suggestion
+    detect: dropped_thread
+    params: {min_mentions: 3, last_seen_before: 0.6, min_scenes: 8}
+    principle: >
+      Something the script capitalised and came back to three times reads as
+      planted. If the document never refers to it again, either it is paid
+      off somewhere the page does not show or the capitals are doing work
+      the story stopped doing.
+    source: ProdConv; Goldman
+
+  - id: C036
+    name: Lead with no age anywhere on the page
+    tier: 2
+    category: consistency
+    severity: suggestion
+    detect: unaged_principal
+    params: {top: 5}
+    principle: >
+      Casting reads a screenplay for four facts about each part, and age is
+      the one that decides who is sent the script at all. One parenthetical
+      at the first appearance settles it for the whole document.
+    source: ProdConv; Trottier
+
+  - id: C037
+    name: Substantial part cued by a role rather than a name
+    tier: 2
+    category: production
+    severity: suggestion
+    detect: unnamed_principal
+    params: {min_lines: 15}
+    principle: >
+      WAITER with two lines is a role. WAITER with forty is a part that gets
+      cast, fitted, and called to set by name for weeks, and every one of
+      those steps wants a name to hang on. Numbered variants count as the
+      same role, because SECURITY GUARD 2 is no more named than SECURITY
+      GUARD.
+    source: ProdConv
+
+  - id: C038
+    name: Too many speaking parts in the opening
+    tier: 2
+    category: craft
+    severity: suggestion
+    detect: crowded_opening
+    params: {opening_share: 0.1, max_cast: 23, min_scenes: 20}
+    principle: >
+      A reader can hold only so many new names before they start turning back
+      pages. Names arriving faster than that in the opening cost comprehension
+      for the whole draft, whatever happens later. The taught figure is about
+      half a dozen; across 1,082 produced screenplays the median opening tenth
+      introduces eleven speaking parts, and a ceiling of eight flagged 65% of
+      them. The value here is the 90th percentile of that corpus. The teaching
+      is about what a reader can hold, and the measurement says produced
+      screenplays routinely ask for more, which is worth reporting either way.
+    source: Field; Snyder; measured, see docs/research/threshold-results.md
+
+  - id: C039
+    name: Substantial part arriving very late
+    tier: 2
+    category: craft
+    severity: suggestion
+    detect: late_principal
+    params: {after: 0.75, min_lines: 8}
+    profiles: [us-spec-feature, shooting-script, indian-regional]
+    principle: >
+      A character who first speaks in the last quarter and then carries a
+      substantial part has to earn their place from nothing while the story
+      is closing. Usually one earlier line of planting is all it needs.
+    source: Field; McKee
+
+  - id: C040
+    name: Scene with only one voice in it
+    tier: 2
+    category: consistency
+    severity: suggestion
+    detect: lone_speaker_scene
+    params: {min_lines: 6}
+    principle: >
+      A long stretch of speech with one cue and no extension anywhere in the
+      scene usually means the reply was written and the cue was lost. If the
+      character really is alone, or the other side is a phone, the page
+      should say so with (V.O.) or (O.S.).
+    source: Trottier; ProdConv
+
+  # =====================================================================
+  # TIER 3: LOOSE ENDS
+  # Reference continuity that needs reading rather than counting. Every one
+  # of these asks the same question a tier-2 rule asks (does the document
+  # come back to this?) about something only a reader can identify. All are
+  # suggestions, all require verbatim evidence of the setup, and none of
+  # them judges whether the story is any good.
+  # =====================================================================
+
+  - id: S021
+    name: Question raised in dialogue and never returned to
+    tier: 3
+    category: craft
+    severity: suggestion
+    scope: document
+    principle: >
+      A question a character puts to the story, as opposed to a question
+      answered in the next line, sets an expectation the document should
+      come back to. Flag only questions that are given weight and then never
+      referred to again anywhere in the provided text.
+    source: Field; McKee
+    examples:
+      - bad: "MAYA: Who signed the release form? (never mentioned again in the script)"
+        good: "MAYA: Who signed the release form? ... later ... MAYA: You signed it. I checked."
+      - bad: "SAM: What happened to the money? (the money never appears again)"
+        good: "SAM: What happened to the money? ... later ... The bag sits on the table, empty."
+
+  - id: S022
+    name: Detail planted and never used
+    tier: 3
+    category: craft
+    severity: suggestion
+    scope: document
+    principle: >
+      An object, an ability, or a fact given deliberate attention creates an
+      expectation of use. Flag a plant that gets a beat of its own and then
+      never returns. Do not flag ordinary set dressing, and do not speculate
+      about how it should have been paid off.
+    source: Goldman; McKee
+    examples:
+      - bad: "She unlocks the drawer and looks at the revolver for a long moment. (the revolver never appears again)"
+        good: "She unlocks the drawer and looks at the revolver. ... later ... The drawer is open. The revolver is gone."
+
+  - id: S023
+    name: Strand of scenes that stops without a closing beat
+    tier: 3
+    category: craft
+    severity: suggestion
+    scope: document
+    principle: >
+      A run of scenes following one situation should either resolve or be
+      deliberately left open. Flag a strand that simply stops being written
+      about. Quote the last scene of the strand as evidence.
+    source: Field; McKee
+    examples:
+      - bad: "Three scenes build the eviction hearing, and after page 60 it is never referred to again."
+        good: "Three scenes build the eviction hearing; the last one ends with the notice served."
+
+  - id: S024
+    name: Stated intention never referred to again
+    tier: 3
+    category: craft
+    severity: suggestion
+    scope: document
+    principle: >
+      When a character says out loud what they are going to do, the document
+      should either show it, contradict it, or have somebody notice it did
+      not happen. Flag the stated intention that vanishes with none of those.
+    source: McKee
+    examples:
+      - bad: "RAJU: Tomorrow I sell the shop. (the shop is never mentioned again)"
+        good: "RAJU: Tomorrow I sell the shop. ... later ... The shutter is down. The board is gone."
+
+  - id: S025
+    name: Character leaves the story without an exit beat
+    tier: 3
+    category: craft
+    severity: suggestion
+    scope: document
+    principle: >
+      A character built up across several scenes and then simply absent
+      reads as an oversight rather than a choice. Flag the last appearance
+      only when it carries no sense of ending and nobody refers to them
+      afterwards.
+    source: McKee; Snyder
+    examples:
+      - bad: "PRIYA drives four scenes in the first act, then never appears or is mentioned again."
+        good: "PRIYA drives four scenes, and her last one closes on the door shutting behind her."
+
+  - id: S026
+    name: Answer to a question the scene never asked
+    tier: 3
+    category: craft
+    severity: suggestion
+    scope: document
+    principle: >
+      Information delivered before the story has given the audience a reason
+      to want it lands as an announcement. Flag a speech that supplies a
+      fact nothing in the preceding scenes has made anyone curious about.
+    source: McKee; Goldman
+    examples:
+      - bad: "ANIL: As you know, our father left the mill to me in 1994 after the flood."
+        good: "ANIL: You want the mill. ... DEVI: Father left it to you. ... ANIL: After the flood."
+
+  - id: S027
+    name: Reversal announced rather than played
+    tier: 3
+    category: craft
+    severity: suggestion
+    scope: window
+    principle: >
+      When a scene turns, the turn should happen in front of the audience.
+      Flag a scene where the change is reported in dialogue after the fact
+      instead of being staged.
+    source: McKee
+    examples:
+      - bad: "SAM: So then I told him no and he backed down completely."
+        good: "SAM: No. ... A long silence. The man steps back."
+
+  - id: S028
+    name: Entrance nobody in the scene reacts to
+    tier: 3
+    category: craft
+    severity: suggestion
+    scope: window
+    principle: >
+      A character walking into a scene changes it. Flag an entrance the
+      scene absorbs without a single beat of reaction, where the arrival was
+      built up enough that the absence reads as a missing beat.
+    source: McKee; Goldman
+    examples:
+      - bad: "The door opens. RAVI walks in. NALINI keeps talking about the bus timetable."
+        good: "The door opens. RAVI walks in. NALINI stops mid-sentence."
+
+  - id: S029
+    name: Time passing that the page never signals
+    tier: 3
+    category: craft
+    severity: suggestion
+    scope: window
+    principle: >
+      When the story jumps forward, the page has to say so, in a heading, in
+      a line of description, or in dialogue. Flag a jump the reader can only
+      infer from a changed situation.
+    source: Riley; McKee
+    examples:
+      - bad: "The scene before ends at the hospital; the next opens with the child walking, with nothing to mark the years."
+        good: "SUPER: FOUR YEARS LATER"
+
+  - id: S030
+    name: Character present in a scene who never speaks or acts
+    tier: 3
+    category: craft
+    severity: suggestion
+    scope: window
+    principle: >
+      Somebody the description puts in a room and then never gives a line, a
+      reaction, or a piece of business is a person the scene forgot. Flag
+      only where the character was named on entry into that scene.
+    source: McKee; ProdConv
+    examples:
+      - bad: "MEENA, ARJUN and their mother sit down to eat. Meena and Arjun argue for two pages. (the mother is never referred to again in the scene)"
+        good: "MEENA, ARJUN and their mother sit down to eat. ... Their mother sets down her spoon. They stop."
+
+# =====================================================================
+# GENRE SIGNATURES
+#
+# Not a verdict. Every entry below is a set of bands over measurements the
+# metrics layer takes from the page: what share of scenes are night, how much
+# of the document is dialogue, how fast the scenes turn over. A script is
+# scored by how many bands it sits inside, and the per-signal evidence is
+# always shown, so a reader can disagree with any single band and see exactly
+# what it changed.
+#
+# Genre is an observable category rather than a judgment of quality, which is
+# why this is allowed to exist here at all. Nothing below says a script is
+# good, or that it should be one genre rather than another.
+#
+# PROVENANCE, stated plainly: these bands are starting heuristics drawn from
+# how each form is conventionally taught and from what the shape of the page
+# implies about shooting it. They are NOT measured from a labelled corpus,
+# because no freely licensed corpus of that kind exists yet. Treat a match as
+# a prompt to look, never as a fact. They are data precisely so they can be
+# replaced by measured values the day a corpus does exist.
+# =====================================================================
+
+genres:
+  comedy:
+    name: Comedy
+    signals:
+      short_exchange_ratio: [0.55, 1.0]
+      dialogue_ratio: [0.5, 1.0]
+      night_ratio: [0.0, 0.4]
+      avg_scene_pages: [0.0, 1.4]
+      dread_word_density: [0.0, 0.6]
+    principle: >
+      Comedy lives on the turn between two lines, so its speeches are short
+      and its scenes end early. It is written daytime and interior far more
+      often than not, because the joke needs the room lit.
+
+  drama:
+    name: Drama
+    signals:
+      dialogue_ratio: [0.45, 1.0]
+      avg_scene_pages: [0.8, 3.0]
+      cast_per_page: [0.0, 0.45]
+      action_word_density: [0.0, 0.8]
+      short_exchange_ratio: [0.0, 0.7]
+    principle: >
+      Drama gives a scene room to turn, so scenes run longer and the cast
+      stays small enough that each speaker is developed rather than used.
+
+  action:
+    name: Action or thriller
+    signals:
+      action_word_density: [0.8, 100.0]
+      dialogue_ratio: [0.0, 0.55]
+      exterior_ratio: [0.25, 1.0]
+      scenes_per_page: [0.6, 100.0]
+      locations_per_page: [0.2, 100.0]
+    principle: >
+      Action is carried in description rather than speech, moves between more
+      places, and turns scenes over faster than a script that talks.
+
+  horror:
+    name: Horror
+    signals:
+      night_ratio: [0.4, 1.0]
+      dread_word_density: [0.8, 100.0]
+      dialogue_ratio: [0.0, 0.55]
+      cast_per_page: [0.0, 0.4]
+      avg_scene_pages: [0.0, 2.0]
+    principle: >
+      Horror is written at night with a small cast in few places, and it
+      spends its description on what cannot be seen clearly.
+
+  romance:
+    name: Romance
+    signals:
+      intimacy_word_density: [0.5, 100.0]
+      dialogue_ratio: [0.5, 1.0]
+      cast_per_page: [0.0, 0.5]
+      action_word_density: [0.0, 0.5]
+      night_ratio: [0.0, 0.5]
+    principle: >
+      Romance keeps two people in the frame and lets them talk, so its
+      description carries touch and reaction rather than event.
+
+# Bands a script is measured against for its declared profile. Same caveat as
+# above: conventional teaching, not a measured distribution. Page bands are the
+# most defensible of these because they are enforced by readers in practice.
+#
+# LANGUAGE, stated plainly: these numbers describe screenplays written in
+# English, and the page-a-minute convention they rest on is an English-language
+# typesetting result. A page of Telugu or Hindi dialogue does not run for the
+# same time, and the indian-regional bands below widen the page count without
+# claiming to have measured anything. Read every band here as "for English
+# scripts" unless a measured alternative replaces it.
+comparables:
+  us-spec-feature:
+    pages: [90, 120]
+    scene_count: [40, 130]
+    speaking_cast: [8, 35]
+    location_count: [15, 60]
+    night_share: [0.0, 0.45]
+  tv-pilot:
+    pages: [28, 68]
+    scene_count: [20, 70]
+    speaking_cast: [6, 25]
+    location_count: [6, 30]
+    night_share: [0.0, 0.5]
+  shooting-script:
+    pages: [90, 130]
+    scene_count: [40, 160]
+    speaking_cast: [8, 45]
+    location_count: [15, 70]
+    night_share: [0.0, 0.5]
+  indian-regional:
+    pages: [110, 165]
+    scene_count: [60, 200]
+    speaking_cast: [15, 60]
+    location_count: [25, 90]
+    night_share: [0.0, 0.5]

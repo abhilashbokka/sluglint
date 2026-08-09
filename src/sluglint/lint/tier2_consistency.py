@@ -18,6 +18,7 @@ import re
 from difflib import SequenceMatcher
 from itertools import combinations
 
+from .. import indic
 from ..models import ElementType, Script
 from ..rulebook import Rule
 from .registry import detector, finding
@@ -40,6 +41,17 @@ MONTAGE_CLOSE = re.compile(r"\bEND (?:OF )?(?:MONTAGE|SERIES)\b")
 INTERCUT_OPEN = re.compile(r"\bINTERCUT\b")
 INTERCUT_CLOSE = re.compile(r"\bEND (?:OF )?INTERCUT\b")
 
+# Caps on a sound is standard screenwriting emphasis, and 'a MOAN', 'a THUD'
+# read as props to a rule that only looks for an article. Sound is a department,
+# never a prop, so these are excluded rather than reported and dismissed.
+SOUND_WORDS = {
+    "MOAN", "GROAN", "SCREAM", "SHRIEK", "SHOUT", "YELL", "WHISPER", "GASP",
+    "BANG", "BOOM", "CRASH", "THUD", "CRACK", "SNAP", "CLICK", "CLANG", "CLATTER",
+    "KNOCK", "RATTLE", "RUMBLE", "ROAR", "HISS", "BUZZ", "BEEP", "RING", "CHIME",
+    "SIREN", "HORN", "WHISTLE", "SPLASH", "SLAM", "SQUEAL", "SCREECH", "THUMP",
+    "GUNSHOT", "EXPLOSION", "SILENCE", "LAUGHTER", "APPLAUSE", "FOOTSTEPS",
+}
+
 ABBREVIATIONS = {
     "APT": "APARTMENT", "APTS": "APARTMENTS", "HOSP": "HOSPITAL", "BLDG": "BUILDING",
     "RM": "ROOM", "ST": "STREET", "RD": "ROAD", "AVE": "AVENUE", "BLVD": "BOULEVARD",
@@ -50,8 +62,94 @@ ABBREVIATIONS = {
 }
 
 
+# "CHITRA'S AUNT", "BRIDE'S FATHER": an owner and a relationship. Both
+# apostrophes, because a draft that has been through Final Draft carries the
+# typographic one.
+RELATIVE_CUE = re.compile(r"^(.+?)['\u2019]S\s+(.+)$")
+# 'ORGANIZER 2', 'SENIOR 1', 'COP #3'. The number is the whole point of the cue.
+NUMBERED_CUE = re.compile(r"^(.*?)\s*#?\s*(\d+)$")
+
+
 def similar(a: str, b: str) -> float:
+    """Similarity of two names, in [0, 1].
+
+    Every fuzzy matcher in this tier goes through here, which is why the Indic
+    fold lives here too. Comparing an abugida by code point misses a one-vowel
+    typo and can never match a cue written in Telugu against the same cue
+    written in Latin. Latin-only pairs take the path they always did.
+    """
+    if folded := indic.comparable(a, b):
+        return SequenceMatcher(None, *folded).ratio()
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+
+def _differing_core(a: str, b: str) -> tuple[str, str]:
+    """Strip the shared head and tail, returning only what actually differs."""
+    head = 0
+    while head < min(len(a), len(b)) and a[head] == b[head]:
+        head += 1
+    tail = 0
+    while tail < min(len(a), len(b)) - head and a[-1 - tail] == b[-1 - tail]:
+        tail += 1
+    return a[head:len(a) - tail], b[head:len(b) - tail]
+
+
+# Typographic punctuation and its ASCII twin look identical on paper and are
+# different characters to every registry downstream.
+TYPOGRAPHIC = {"\u2019": "'", "\u2018": "'", "\u2013": "-", "\u2014": "-"}
+
+
+def plain(text: str) -> str:
+    """Fold typographic punctuation onto its ASCII twin."""
+    for fancy, ascii_form in TYPOGRAPHIC.items():
+        text = text.replace(fancy, ascii_form)
+    return text
+
+
+def _only_typography(a: str, b: str) -> bool:
+    """True when two spellings differ ONLY in punctuation characters.
+
+    'CHITRA'S FATHER' written with a typewriter apostrophe and with a
+    typographic one is one name, and C031 reports it with the exact fix. Left
+    unguarded, the fuzzy matchers report the same pair a second time with a
+    vaguer message, which is how a rulebook starts to feel like noise.
+    """
+    return a != b and plain(a) == plain(b)
+
+
+def _deliberately_distinct(a: str, b: str, thresh: float) -> bool:
+    """True when two near-identical cues name different people on purpose.
+
+    Two shapes cause almost every false name-drift report on a real script.
+    A cast full of "X'S FATHER" and "Y'S FATHER" is normal in a family drama,
+    and those cues are 85% alike by character overlap while naming two
+    different actors; both halves have to match before that pair is drift.
+    Numbered extras are the same problem with a simpler tell.
+    """
+    # 'SENIOR 1' and 'SENIOR 2' are two extras, and so are 'SENIOR' and
+    # 'SENIOR 2'. Cues that agree on everything but a trailing number are the
+    # one case where near-identical spelling means deliberately different people.
+    na, nb = NUMBERED_CUE.match(a), NUMBERED_CUE.match(b)
+    if (na or nb) and (na.group(2) if na else "") != (nb.group(2) if nb else ""):
+        stem_a = na.group(1) if na else a
+        stem_b = nb.group(1) if nb else b
+        if similar(stem_a, stem_b) >= thresh:
+            return True
+    # A long shared head or tail carries the similarity score on its own.
+    # "CHITRA'S HOUSE - THE NEXT DAY" and "CHITRA'S OFFICE - THE NEXT DAY" are
+    # 88% alike and two sets. When what actually differs is a whole word on both
+    # sides, the difference is the point; when it is punctuation, a possessive,
+    # or nothing at all, the two are one thing spelled two ways.
+    core_a, core_b = _differing_core(a, b)
+    if (len(core_a) >= 3 and len(core_b) >= 3
+            and core_a.strip().isalpha() and core_b.strip().isalpha()
+            and similar(core_a, core_b) < thresh):
+        return True
+    ma, mb = RELATIVE_CUE.match(a), RELATIVE_CUE.match(b)
+    if not (ma and mb):
+        return False
+    return not (similar(ma.group(1), mb.group(1)) >= thresh
+                and similar(ma.group(2), mb.group(2)) >= thresh)
 
 
 def _norm_location(loc: str) -> str:
@@ -100,6 +198,8 @@ def name_drift(script: Script, rule: Rule):
     registry = script.character_registry()
     thresh = float(rule.params.get("similarity_threshold", 0.80))
     for a, b in combinations(sorted(registry), 2):
+        if _deliberately_distinct(a, b, thresh) or _only_typography(a, b):
+            continue
         ratio = similar(a, b)
         if a in b.split() or b in a.split():  # 'RAJ' inside 'RAJ KUMAR'
             ratio = max(ratio, 0.99)
@@ -317,6 +417,11 @@ def location_drift(script: Script, rule: Rule):
     thresh = float(rule.params.get("similarity_threshold", 0.82))
     locations = sorted({_norm_location(s.location) for s in script.scenes if s.location})
     for a, b in combinations(locations, 2):
+        # Places take the same guard cues do: two sluglines that agree except
+        # for one whole word are two places, and "ROOM 1" and "ROOM 2" are two
+        # rooms. Only near-identical spelling of the same name is drift.
+        if _deliberately_distinct(a, b, thresh) or _only_typography(a, b):
+            continue
         ratio = similar(a, b)
         if thresh <= ratio < 1.0:
             yield finding(
@@ -433,7 +538,7 @@ def unpaid_prop(script: Script, rule: Rule):
             continue
         for m in PROP.finditer(el.text):
             prop = m.group(1)
-            if len(prop) >= min_length and prop not in registry:
+            if len(prop) >= min_length and prop not in registry and prop.upper() not in SOUND_WORDS:
                 first_seen.setdefault(prop, el)
     for prop, el in first_seen.items():
         # Capitalised once, and the word never appears again in any casing.

@@ -59,24 +59,58 @@ def parenthetical_overuse(script: Script, rule: Rule):
                       suggestion="Let the line imply its own delivery.")
 
 
+def _length(script: Script) -> str:
+    """How to say the page count without overclaiming it.
+
+    A PDF prints its own page numbers and a text draft has to be measured, so
+    only one of the two is an estimate. Calling a stated number estimated is
+    the same defect as deriving one that was already on the page.
+    """
+    pages = script.estimated_pages
+    prefix = "Length" if script.page_count else "Estimated length"
+    return f"{prefix} {pages:g} pages"
+
+
 @detector("page_count")
 def page_count(script: Script, rule: Rule):
     pages = script.estimated_pages
     lo = float(rule.params.get("min_pages", 85))
     hi = float(rule.params.get("max_pages", 125))
     if script.scenes and not lo <= pages <= hi:
-        yield finding(rule, f"Estimated length {pages} pages is outside {lo:g}-{hi:g}.",
+        yield finding(rule, f"{_length(script)} is outside {lo:g}-{hi:g}.",
                       evidence="length outside feature band",
                       suggestion="Fine for a short film; a red flag for a feature spec.")
 
 
 @detector("scene_numbers")
 def scene_numbers(script: Script, rule: Rule):
-    for sc in script.scenes:
-        if sc.number is not None:
-            yield finding(rule, "Scene heading carries a scene number (shooting-script style).",
-                          line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
-                          suggestion="Strip scene numbers from a spec draft.")
+    """One report for the document. Numbering is a decision, not a typo.
+
+    A draft either carries scene numbers or it does not, and reporting the
+    same decision once per heading produced a hundred and eighty findings on
+    one script in the corpus sweep. Where MOST headings are numbered the
+    document is a production draft being read against spec rules, which is a
+    wrong profile rather than a defect, and the message says so.
+    """
+    numbered = [sc for sc in script.scenes if sc.number is not None]
+    if not numbered:
+        return
+    share = len(numbered) / max(len(script.scenes), 1)
+    if share >= float(rule.params.get("profile_mismatch_share", 0.6)):
+        yield finding(rule, f"{len(numbered)} of {len(script.scenes)} headings are numbered "
+                            f"({share:.0%}). This is a production draft.",
+                      line_no=numbered[0].line_no, scene_index=numbered[0].index,
+                      evidence="scene numbers throughout",
+                      suggestion="Numbering is correct for a production draft. Lint it with "
+                                 "--profile shooting-script, where numbering is required and "
+                                 "continuity matters more than spec polish.")
+        return
+    yield finding(rule, f"{len(numbered)} scene heading(s) carry a scene number "
+                        f"(shooting-script style).",
+                  line_no=numbered[0].line_no, scene_index=numbered[0].index,
+                  evidence="scene numbers in a spec draft",
+                  suggestion="Strip scene numbers from a spec draft; the software renumbers "
+                             "on every revision anyway.")
 
 
 @detector("caps_overuse")
@@ -239,7 +273,7 @@ def pilot_page_count(script: Script, rule: Rule):
     split = float(rule.params.get("split_at", 42))
     band, label = (half, "half-hour") if pages < split else (hour, "one-hour")
     if not band[0] <= pages <= band[1]:
-        yield finding(rule, f"Estimated length {pages} pages is outside the {label} band "
+        yield finding(rule, f"{_length(script)} is outside the {label} band "
                             f"({band[0]:g}-{band[1]:g}).",
                       evidence="pilot length outside format band",
                       suggestion="Pick a format and cut or build to its band.")
@@ -288,3 +322,31 @@ def mixed_script_cue(script: Script, rule: Rule):
                             f"{len(native)} in a native script.",
                       evidence="mixed writing systems in character cues",
                       suggestion=f"Pick one. Native-script cues: {', '.join(native[:5])}")
+
+
+@detector("sliver_scene")
+def sliver_scene(script: Script, rule: Rule):
+    if len(script.scenes) < int(rule.params.get("min_scenes", 20)):
+        return
+    floor = int(rule.params.get("min_eighths", 1)) / 8.0
+    slivers = [sc for sc in script.scenes if 0 < sc.estimated_pages < floor]
+    if len(slivers) > len(script.scenes) / 5:
+        yield finding(rule, f"{len(slivers)} of {len(script.scenes)} scenes run under "
+                            f"an eighth of a page.",
+                      evidence="scenes under one eighth",
+                      suggestion="Each still takes a scene number and a strip on the "
+                                 "board. A run of them usually wants a montage header.")
+
+
+@detector("unstaged_scene")
+def unstaged_scene(script: Script, rule: Rule):
+    floor = int(rule.params.get("min_lines", 8))
+    for sc in script.scenes:
+        dialogue = sum(1 for el in sc.elements if el.type == ElementType.DIALOGUE)
+        action = sum(1 for el in sc.elements if el.type == ElementType.ACTION)
+        if dialogue >= floor and action == 0:
+            yield finding(rule, f"{dialogue} lines of dialogue and no action line in "
+                                f"this scene.",
+                          line_no=sc.line_no, scene_index=sc.index, evidence=sc.heading,
+                          suggestion="One line of what the room is doing gives the "
+                                     "director staging and the reader a picture.")

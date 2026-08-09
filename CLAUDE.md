@@ -12,52 +12,91 @@ consistency engine over parsed structure (registries, timeline, fuzzy matching),
 then **T3** LLM rubric judges for soft/craft rules (Claude, one scoped rubric per
 rule).
 
-**101 rules across 4 profiles** (`us-spec-feature` default, `tv-pilot`,
+**148 rules across 4 profiles** (`us-spec-feature` default, `tv-pilot`,
 `shooting-script`, `indian-regional`). A rule with no `profiles:` key applies to
 all; one that lists them applies only to those.
 
 ## Commands
 
+Work inside the project venv. Never install into the system or anaconda Python:
+the extras here (`pdfplumber`, `anthropic`) are the project's, not the machine's.
+
 ```bash
-pip install -e ".[dev]"                          # add ,llm for tier 3
-pytest -q                                        # 113 tests, must stay green
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev,pdf,llm,indic]"            # dev only: drop the extras
+
+pytest -q                                        # 225 tests, must stay green
 ruff check . && pylint src/sluglint              # must stay clean (10.00/10)
 
 python -m sluglint.cli lint examples/the_last_train.fountain
+python -m sluglint.cli lint script.pdf                  # needs the [pdf] extra
+python -m sluglint.cli convert script.pdf               # inspect the recovered Fountain
 python -m sluglint.cli lint --profile tv-pilot examples/night_shift_pilot.fountain
 python -m sluglint.cli diff examples/the_last_train.fountain examples/the_last_train_v2.fountain
+python -m sluglint.cli stats script.pdf --html out.html  # the dashboard view
 python -m sluglint.cli rules --tier 2            # browse
 python -m sluglint.cli rules --check             # fail if a rule has no handler
+python -m sluglint.cli logline script.pdf        # GENERATED, needs the key, cached
+
+python benchmark/run.py                          # recall, regenerates REPORT.md
+python benchmark/local_report.py ~/Scripts       # precision pass, output is gitignored
+python benchmark/thresholds.py CORPUS --label english-produced \
+    --genres --drafts --verify 150 --out results.md   # thresholds vs practice
 ```
+
+`thresholds.py` measures every numeric parameter in the rulebook against a
+corpus. Containers are named on the command line and NEVER pool: English and
+Telugu are different populations. `--verify` checks each extractor against the
+shipped detector, and a disagreement means the harness is measuring something
+the linter does not.
 
 `pytest` and imports work without `PYTHONPATH`, `pyproject.toml` sets
 `pythonpath = ["src"]`.
 
-Tier 3 needs `ANTHROPIC_API_KEY`; model default `claude-sonnet-5` (override with
-`SLUGLINT_MODEL`). Missing key must never crash, tiers 1-2 run, tier 3 reports
-itself skipped. Keep it that way.
+Tier 3 takes either `ANTHROPIC_API_KEY` or any OpenAI-compatible endpoint via
+`SLUGLINT_LLM_BASE_URL` + `SLUGLINT_LLM_API_KEY` (stdlib `urllib`, no second
+dependency). Model default `claude-sonnet-5`, override with `SLUGLINT_MODEL`.
+Missing key must never crash, tiers 1-2 run, tier 3 reports itself skipped.
+Keep it that way. See [docs/tier3-providers.md](docs/tier3-providers.md).
+
+**Check the provider's data policy before pointing tier 3 at a corpus.** Some
+free tiers train on the prompts they receive, and a screenplay this project may
+not redistribute is one it may not hand to a trainer either. That is hard rule
+9 applied to inference, and it is why `SLUGLINT_LLM_BASE_URL` has no default.
 
 ## Architecture map
 
 | Path | Role |
 |---|---|
-| `src/sluglint/rulebook.yaml` | THE product. 101 rules + 4 profile definitions, as data. |
+| `src/sluglint/rulebook.yaml` | THE PRODUCT. 148 rules, 4 profiles, genre signatures and comparable bands, all as data. A rulebook may `extends: default` and patch rules by id. |
+| `src/sluglint/indic.py` | Folds Telugu/Devanagari/Tamil names onto one comparison key so tier-2 fuzzy matching works on an abugida and across writing systems. `indic-transliteration` behind the `indic` extra, graceful without it. |
+| `src/sluglint/ingest/pdf.py` | PDF to Fountain by margin geometry. Learns the document's own margins, drops printer furniture, refuses PDFs it cannot read. Carries the real page each line printed on out to `Element.page` rather than deriving one. `pdfplumber` behind the `pdf` extra. |
 | `src/sluglint/parser.py` | Fountain-lite → `Script{Scenes[Elements]}`. Forgiving on purpose. Keeps raw lines, extensions, dual markers, scene numbers, act markers. |
 | `src/sluglint/models.py` | Dataclasses. `Finding.fingerprint` powers draft diffing. |
 | `src/sluglint/rulebook.py` | YAML loader, `Rule`, `Profile`, profile filtering. |
 | `src/sluglint/lint/registry.py` | `@detector(key)` registry + `finding()` factory. The ONLY rule→code mapping. |
 | `src/sluglint/lint/tier1_format.py` | How elements are written (headings, cues, hygiene, action lines). |
+| `src/sluglint/lint/tier1_style.py` | The prose INSIDE the elements: caps as volume, numerals in speech, delivery notes doing the work of action, PDF round-trip residue. Several rules here are document-scale on purpose; see hard rule 4. |
 | `src/sluglint/lint/tier1_metrics.py` | Document ratios + profile-gated structure rules. |
 | `src/sluglint/lint/tier2_consistency.py` | Identity, place/time, structural continuity. |
 | `src/sluglint/lint/tier2_production.py` | Cast size, location load, night ratio, lead absence. |
-| `src/sluglint/lint/tier3_llm.py` | Claude judges: rubric build, chunking, schema-enforced JSON, hallucination filters. |
+| `src/sluglint/lint/tier2_story.py` | The cast as a graph (isolated speakers, a cast that splits in two) and reference decay (a set, a thread, or a plant the document never returns to). |
+| `src/sluglint/characters.py` | Age band, pronoun as written, role, first appearance. Extracted from the page, NEVER inferred from a name. |
+| `src/sluglint/network.py` | Co-presence graph: edges, components, cut vertices, weighted degree. Numbers only, no verdict. |
+| `src/sluglint/config.py` | `.sluglint.yaml`: disable, re-grade, retune, allow-list, min severity. Cannot invent a rule. |
+| `src/sluglint/logline.py` | GENERATED synopsis and loglines. Fenced out of the linter, never a Finding, cached per draft. |
+| `src/sluglint/lint/tier3_llm.py` | LLM judges: rubric build, chunking, schema-enforced JSON, hallucination filters, and `FilterStats` counting what each filter caught. Two providers, Anthropic and anything OpenAI-compatible. |
 | `src/sluglint/diff.py` | Resolved/new/persisting findings + scene-level diff. |
+| `src/sluglint/metrics.py` | Production numbers with no verdict attached: presence per character, page load per location, day/night split, company moves, genre signals. Arithmetic only. |
+| `src/sluglint/dashboard.py` | The stats view as a self-contained HTML page. No JS, no network, no script text. |
 | `src/sluglint/report.py` | Console/JSON rendering. |
-| `src/sluglint/cli.py` | `lint` / `diff` / `rules`. |
+| `src/sluglint/cli.py` | `lint` / `stats` / `diff` / `rules` / `convert` / `logline`. |
 | `examples/` | `clean_pages` (must stay clean), one fixture per profile, the v1 to v2 diff pair. |
-| `benchmark/` | Fault-injection mutators, measured recall, draft-drift demo. `corpus/` is gitignored. |
-| `tests/` | 113 tests. Positive fixture per deterministic rule + clean-script gate. |
-| `docs/` | Competitive landscape, product and business model, script licensing. |
+| `benchmark/` | `run.py` injects known defects and measures recall. `local_report.py` lints a private corpus for the precision pass. `thresholds.py` measures every rulebook threshold against a corpus, per named container, and verifies each extractor against the shipped detector. `corpus/` and `local/` are both gitignored. |
+| `tests/` | 225 tests. Positive fixture per deterministic rule + clean-script gate. |
+| `docs/` | Competitive landscape, product and business model, script licensing, the corpus sweep, the OCR design, the report model, the tier-3 provider matrix. |
+| `docs/field-provenance.md` | THE INGESTION CONTRACT. Every value the linter reasons about, labelled STATED / DERIVED / ASSUMED, with the code that produces it. Also lists what the source file states and we still throw away. Read before adding a field to `Script`, `Scene` or `Element`. |
+| `docs/research/` | Paper-idea tracker, one file per idea, plus `evidence.md`: every measured number with its provenance. Cite that file rather than restating a number. |
 
 ## Hard rules for working in this repo
 
@@ -77,6 +116,15 @@ itself skipped. Keep it that way.
    an article before a capitalised prop, a known cue name). T3 keeps its
    hallucination filters (known rule id, in-window scene index, verbatim
    evidence check, confidence threshold), never remove them to boost recall.
+
+   **Volume is a precision problem too.** A rule that reports a real defect a
+   hundred times buries the one thing the writer needed to see. When a
+   convention is a document-scale habit rather than a per-line error (numerals
+   in dialogue, first appearances not capitalised, spacing residue from a PDF),
+   report it ONCE with a count. Better still, fire on the INCONSISTENCY: F053
+   says nothing about a draft that never writes (CONT'D), only about one that
+   writes it sometimes. Before shipping a per-occurrence rule, run it over the
+   local PDFs and look at the count.
 5. **The parser is forgiving; the linters complain.** Malformed input must still
    parse, a parse failure on bad formatting would hide the very defects we
    exist to report.
@@ -92,7 +140,11 @@ itself skipped. Keep it that way.
    fixtures, or git history, ever. Config via env vars only.
    No third-party screenplay text is ever committed. `benchmark/corpus/` is
    gitignored for exactly that reason; see `docs/public-domain-scripts.md`.
-10. **Scope boundary, do not cross it.** Sluglint checks the screenplay as a
+10. **Scope boundary, do not cross it.** The metrics layer reports numbers and
+    the genre signatures count bands; neither is allowed to become a verdict.
+    Genre is an observable category, which is why it is permitted at all. Never
+    add a "jokes per page", a quality score, or a generated logline to the
+    deterministic tiers. Sluglint checks the screenplay as a
     *document*: formatting, internal consistency (characters, locations, time),
     and craft rules about how scenes and lines are written. It does NOT evaluate
     plot logic, premise, theme, or whether the story is good. Never add a rule
@@ -101,15 +153,75 @@ itself skipped. Keep it that way.
     verifiable. Rules like S005 (passive protagonist) and S006 (late inciting
     disruption) sit at the edge of this line: they are `suggestion` severity and
     flag observable patterns rather than verdicts on the story.
-11. **Licence boundary is permanent.** The project is PolyForm Noncommercial:
-    free for writers and noncommercial use, paid for commercial use. Every rule
-    stays visible and stays free for noncommercial use, forever. Paid features
-    live around the engine (hosting, teams, exports) and never inside it. Never
-    move a rule behind a paywall.
 
-12. **No em dashes anywhere.** Not in prose, code comments, docstrings, or the
-    rulebook. Python source is ASCII; typographic characters the linter hunts
-    for are written as `\uXXXX` escapes. Also avoid the "X, not Y" antithesis
+    **Loose ends are inside the line; resolution is not.** C034, C035, and
+    S021-S030 all ask one question: does the document come back to what it
+    introduced? That is reference continuity, the same class as an unpaid prop
+    or an unclosed flashback, and it is checkable by pointing at the page. It is
+    NOT "does this story resolve well", which is a verdict. Keep every new rule
+    of this kind on the first side: it has to name the specific thing that was
+    introduced, and quote it.
+
+    **Never infer a person's attributes from their name.** `characters.py` reads
+    age and pronouns off what the script writes down and answers "unspecified"
+    otherwise. Guessing gender, age, region, or caste from a name would be wrong
+    often and harmful when it was wrong. This is not a tuning knob.
+11. **Licence boundary is permanent. Tier placement is not.** The project is
+    PolyForm Noncommercial: free for writers and noncommercial use, paid for
+    commercial use. Two commitments never move, and everything else may.
+
+    **The permanent floor.** Every rule stays visible and stays free for
+    noncommercial use, forever. The rulebook is the product and it is readable
+    by anyone, including the rules a paid tier happens to run for you. Never
+    move a rule behind a paywall, never hide a rule's text, severity, source or
+    threshold, and never ship a build whose rulebook is smaller than the public
+    one. This is the positioning, and losing it costs more than any feature
+    earns.
+
+    **Everything around the engine may be re-tiered.** Visual output, exports,
+    hosting, collaboration, conversion, batch runs and the dashboards are
+    features rather than rules, and which tier they sit in is a business
+    decision that is allowed to change as the product learns what people pay
+    for. A feature that ships free today may become paid later, and a paid one
+    may be opened up. Neither direction is a broken promise, because none of
+    them was ever the promise.
+
+    **Four conditions on moving one, so it stays honest.**
+    - **Rules are exempt.** If the thing being moved is a rule, or is the only
+      way to see a rule's output, the answer is no. Check this first.
+    - **A release already made keeps its terms.** Re-tiering applies to
+      versions from the change onward. Anyone can keep using the release they
+      have under the licence it shipped with, and the tags stay up so they can.
+    - **Say it in the release notes**, in the version where it changes, in
+      plain words. A feature that quietly stops working is a bug report from
+      someone who trusted us.
+    - **Write down why.** One line in the changelog. If the reason cannot be
+      stated without embarrassment, that is the signal, not the paperwork.
+
+    Expect this to be used rarely. It exists so a tiering decision made early,
+    with no customers and no evidence, does not have to be honoured forever
+    just because it was written down first.
+
+12. **Stated beats derived; derived beats assumed.** If the source file carries
+    a fact, READ it. Never recompute what the document already states and never
+    assume what it could have told us. Page count, the page a line printed on,
+    page size, font name and size are all stated in a PDF; deriving any of them
+    is a defect, and page numbers were estimated for exactly this reason until
+    `Element.page` was wired through. Some values genuinely have to be derived
+    (a PDF has no margin field, only a page box and glyph positions), and that
+    is fine as long as the method is written next to the code. Anything left is
+    a constant, and every constant is owed a measurement against the corpus.
+    The full per-field audit, including what the file states that we still
+    discard, lives in [docs/field-provenance.md](docs/field-provenance.md);
+    update it when you add a field. The failure this prevents is the worst kind
+    we ship: a measurement error arrives dressed as a finding about the script,
+    and the writer cannot tell the two apart.
+
+13. **No em dashes anywhere.** Not in prose, code comments, docstrings, or the
+    rulebook. Python source under `src/` is ASCII and CI enforces it; the
+    characters the linter hunts for, and the Indic ranges it folds, are written
+    as `\uXXXX` escapes. Tests are exempt, because the Indic cases have to
+    carry the scripts they are testing. Also avoid the "X, not Y" antithesis
     construction; say the thing plainly instead.
 
 ## Branching
@@ -120,22 +232,58 @@ itself skipped. Keep it that way.
 
 ## Prioritized next steps
 
-1. **Precision measurement.** `benchmark/` already measures recall (97% on
-   injected defects). Precision on real scripts is unmeasured because almost no
-   produced screenplay can legally be redistributed. Closing it needs either a
-   Creative Commons corpus or a human verdict per finding on a private corpus.
-2. **PDF ingestion**: pdfplumber-based extraction using margin positions to
-   classify element types, emitting the same `Script` model. Then FDX (XML -
-   easy). This is the highest-leverage item; PDF is the format scripts actually
-   circulate in.
-3. **Story-bible extraction** (T2.5): one LLM pass building props/story-day/fact
+**Read [docs/research/evidence.md](docs/research/evidence.md) before quoting any
+number about this project.** Three standing facts that are easy to get wrong:
+recall is 97% and measured, precision has no number at all; tier 3 has never run
+on a real screenplay, so all 38 of its rules are silent in every corpus figure;
+and thresholds are now measured against 1,082 produced screenplays, with 15 of
+them judged too strict and not yet retuned.
+
+0. **A licensed corpus is the bottleneck for three things at once**: the
+   comparables bands, the genre signatures, and the precision number. All three
+   are marked in the rulebook as conventional heuristics and all three become
+   measurements the day a corpus exists. Note also the language caveat now
+   written next to `comparables:`: those bands describe scripts written in
+   ENGLISH, and the page-a-minute convention they rest on is an English
+   typesetting result.
+
+1. **OCR fallback for PDFs the geometry reader refuses.** Pre-Unicode Indic
+   fonts and scans. Apple Vision (`ocrmac`) does not cover Telugu or
+   Devanagari, so this needs Tesseract `tel`/`hin`, capability-gated the way
+   tier 3 is. See `docs/pdf-ingestion.md`.
+2. **Precision measurement.** `benchmark/` already measures recall (97% on
+   injected defects). Precision on real scripts is spot-checked on a private
+   corpus, not measured at scale. Closing it needs either a Creative Commons
+   corpus or a human verdict per finding.
+
+   Related and cheaper: fifteen thresholds are measured as too strict and not
+   yet retuned, and 16 numeric literals sit in detector code rather than in the
+   rulebook. Both are recorded in
+   [docs/research/threshold-results.md](docs/research/threshold-results.md).
+3. **FDX ingestion (free tier).** XML with element types already named; much
+   easier than PDF. No dependency needed, stdlib `xml.etree` reads it. Ingestion
+   is never a paid feature: a rule must not get a quieter reading because of the
+   file format it arrived in.
+
+   **FDX and Fountain EXPORT (tier 3).** Recovering an editable script from a
+   PDF the writer only has as a PDF is high value and low volume, which is the
+   tier-3 test, and it needs no LLM. `sluglint convert` already emits Fountain;
+   the gap to FDX is a small writer over `Script`. Two formats reach all five
+   apps, because Final Draft, WriterDuet, Celtx, Fade In and Movie Magic all
+   import FDX; writing the proprietary formats buys nothing extra. FDX's
+   `<SceneProperties Page="...">` wants the real page number, which is why
+   `Element.page` had to land first. Conversion quality is capped by the
+   classifier, so the parenthetical tolerance in
+   [docs/field-provenance.md](docs/field-provenance.md) stops being a lint edge
+   case and becomes a wrong element type in someone's editable file.
+4. **Story-bible extraction** (T2.5): one LLM pass building props/story-day/fact
    registries; feed existing tier-2 style checks over that structure.
-4. **Batch + caching for T3**: findings cache keyed by (scene text hash, rule id,
+5. **Batch + caching for T3**: findings cache keyed by (scene text hash, rule id,
    model) so re-lints of unchanged scenes are free.
-5. **FastAPI service** wrapping `run_lint`, then a web UI with an annotated
+6. **FastAPI service** wrapping `run_lint`, then a web UI with an annotated
    script view and accept/dismiss per finding, that feedback loop is the
    labelled data the eval harness wants.
-6. **More profiles**: stage play, radio drama, documentary; more regional
+7. **More profiles**: stage play, radio drama, documentary; more regional
    conventions.
 
 ## Context: why this exists

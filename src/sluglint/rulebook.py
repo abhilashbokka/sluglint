@@ -35,18 +35,50 @@ class Rule:
     principle: str
     source: str = ""
     detect: str = ""
+    # Tier 3 only. What the judge has to see to answer the rule at all.
+    # `window` fits inside a handful of scenes; `document` asks whether the
+    # script ever comes back to something, which a six-scene window cannot
+    # answer no matter how the prompt is written. Measured: on Parasite all 5
+    # rules that fired were window scale and all 14 document-scale rules were
+    # silent, because they were unanswerable rather than unviolated.
+    scope: str = "window"
     params: dict = field(default_factory=dict)
     examples: list = field(default_factory=list)
     profiles: list[str] = field(default_factory=list)  # empty = applies to all
+    # Per-profile amendment to the principle, for rules that hold everywhere but
+    # need different boundaries in one market. A Telugu draft is written in
+    # transliterated Telugu, so the spelling rule has to be told that a word
+    # outside an English dictionary is the norm rather than a typo.
+    profile_notes: dict[str, str] = field(default_factory=dict)
 
     def applies_to(self, profile: str) -> bool:
         return not self.profiles or profile in self.profiles
+
+    def note_for(self, profile: str) -> str:
+        return self.profile_notes.get(profile, "")
+
+
+@dataclass
+class Genre:
+    """A named set of bands over measurements, never a verdict.
+
+    Genre is an observable category rather than a judgment of quality, which is
+    the only reason it belongs in this rulebook at all. The bands are data so
+    they can be argued with, and so they can be replaced by measured values
+    the day a licensed corpus exists to measure them from.
+    """
+    key: str
+    name: str
+    principle: str = ""
+    signals: dict[str, list[float]] = field(default_factory=dict)
 
 
 @dataclass
 class Rulebook:
     rules: list[Rule]
     profiles: dict[str, Profile]
+    genres: dict[str, Genre] = field(default_factory=dict)
+    comparables: dict[str, dict[str, list[float]]] = field(default_factory=dict)
 
     @property
     def default_profile(self) -> str:
@@ -62,9 +94,44 @@ class Rulebook:
         return [r for r in self.rules if r.applies_to(key)]
 
 
+def _read(path: Path) -> dict:
+    """Read one rulebook file, resolving `extends:` first.
+
+    `extends: default` (or a path to another rulebook) is what makes a private
+    ruleset practical. A studio that wants the shipped 150 rules plus nine of
+    its own, with two thresholds moved, writes eleven entries rather than
+    forking a 1500-line file and losing every later fix. Rules merge by id, so
+    an entry with an existing id patches that rule field by field and an entry
+    with a new id adds one.
+    """
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    base_ref = data.pop("extends", None)
+    if not base_ref:
+        return data
+    base_path = (DEFAULT_RULEBOOK if str(base_ref) == "default"
+                 else (path.parent / str(base_ref)).resolve())
+    base = _read(base_path)
+
+    merged = dict(base)
+    by_id = {r["id"]: dict(r) for r in base.get("rules", [])}
+    order = list(by_id)
+    for raw in data.get("rules", []) or []:
+        if raw["id"] in by_id:
+            by_id[raw["id"]].update(raw)
+        else:
+            by_id[raw["id"]] = dict(raw)
+            order.append(raw["id"])
+    merged["rules"] = [by_id[i] for i in order]
+    for section in ("profiles", "genres", "comparables"):
+        combined = dict(base.get(section) or {})
+        combined.update(data.get(section) or {})
+        merged[section] = combined
+    return merged
+
+
 def load_rulebook(path: str | Path | None = None) -> Rulebook:
     p = Path(path) if path else DEFAULT_RULEBOOK
-    data = yaml.safe_load(p.read_text(encoding="utf-8"))
+    data = _read(p)
 
     profiles = {
         key: Profile(
@@ -82,12 +149,29 @@ def load_rulebook(path: str | Path | None = None) -> Rulebook:
             category=raw.get("category", ""), severity=raw["severity"],
             principle=" ".join(str(raw.get("principle", "")).split()),
             source=raw.get("source", ""), detect=raw.get("detect", ""),
+            scope=raw.get("scope", "window"),
             params=raw.get("params", {}) or {}, examples=raw.get("examples", []) or [],
             profiles=list(raw.get("profiles", []) or []),
+            profile_notes={k: " ".join(str(v).split())
+                           for k, v in (raw.get("profile_notes", {}) or {}).items()},
         )
         for raw in data.get("rules", [])
     ]
-    return Rulebook(rules=rules, profiles=profiles)
+    genres = {
+        key: Genre(
+            key=key,
+            name=raw.get("name", key),
+            principle=" ".join(str(raw.get("principle", "")).split()),
+            signals={k: [float(v[0]), float(v[1])]
+                     for k, v in (raw.get("signals", {}) or {}).items()},
+        )
+        for key, raw in (data.get("genres") or {}).items()
+    }
+    comparables = {
+        profile: {k: [float(v[0]), float(v[1])] for k, v in bands.items()}
+        for profile, bands in (data.get("comparables") or {}).items()
+    }
+    return Rulebook(rules=rules, profiles=profiles, genres=genres, comparables=comparables)
 
 
 def load_rules(path: str | Path | None = None, profile: str | None = None) -> list[Rule]:

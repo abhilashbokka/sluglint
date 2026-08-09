@@ -98,20 +98,69 @@ class Line:
 
 
 @dataclass
+class Row:
+    """One line of recovered Fountain, carrying what the text cannot say.
+
+    A blank line is a Row too, with no kind and no position, so the list stays
+    index-aligned with the document it renders to. That alignment is the whole
+    point: `line_no` from the parser indexes straight back into here.
+    """
+    text: str
+    kind: str = ""                 # what the geometry classifier decided
+    pos: float | None = None       # pages, including the fraction down the page
+
+
+@dataclass
 class PdfIngest:
-    """The Fountain text recovered from a PDF, plus what we had to assume."""
-    fountain: str
-    pages: int
-    action_x: float
+    """What a PDF turned out to say, in Fountain and beside it.
+
+    A screenplay PDF states more than Fountain can express. The page a line
+    printed on, how far down that page it sat, and which column the geometry
+    found it in are all facts the text drops on the floor, and each one was
+    previously smuggled through in its own ad-hoc parallel list.
+
+    They travel together now. `rows` is the single channel, `fountain` is
+    rendered FROM it rather than kept beside it, so the two cannot drift, and
+    `stamp` is the one place that puts the facts back on a parsed script.
+    Adding a new fact means adding a field to `Row`, and nothing else.
+    """
+    rows: list[Row] = field(default_factory=list)
+    pages: int = 0
+    action_x: float = 0.0
     notes: list[str] = field(default_factory=list)
-    # One entry per line of `fountain`, holding the PDF page that line printed
-    # on (None for the blank lines Fountain needs and the PDF never had). The
-    # page a line fell on is something the document states, so it is carried
-    # rather than derived; see `_stamp_pages`.
-    page_map: list[float | None] = field(default_factory=list)
     # What the file states about itself: page size, font, monospace.
     # Kept rather than discarded; see docs/field-provenance.md.
     source_meta: dict = field(default_factory=dict)
+
+    @property
+    def fountain(self) -> str:
+        """The recovered document. Derived, so it cannot disagree with `rows`."""
+        return "\n".join(r.text for r in self.rows) + "\n" if self.rows else ""
+
+    def stamp(self, script: Script) -> None:
+        """Put the page facts back onto a script parsed from `fountain`.
+
+        `parse_text` numbers elements by line in the text it was handed, and
+        that text is rendered from `rows`, so the line number is an index into
+        `rows`. The alignment holds by construction rather than by care, which
+        is why a row's text may never contain a newline: one embedded break
+        would shift every page below it by one, silently, which is exactly the
+        failure this class exists to make impossible.
+
+        Scenes and the script share Element instances, so stamping once
+        reaches every layer that reads them.
+        """
+        for i, row in enumerate(self.rows):
+            if "\n" in row.text:
+                raise RuntimeError(
+                    f"row {i} contains a line break, which would misalign every "
+                    f"page below it: {row.text[:60]!r}")
+        for el in script.elements:
+            index = el.line_no - 1
+            if 0 <= index < len(self.rows) and self.rows[index].pos is not None:
+                pos = self.rows[index].pos
+                el.page_pos = round(pos, 4)
+                el.page = int(pos)
 
 
 def _require_pdfplumber():
@@ -286,33 +335,30 @@ def _title_page(lines: list[Line]) -> tuple[list[str], int]:
     return keys, len(front)
 
 
-def _emit(typed: list[tuple[str, Line]]) -> tuple[list[str], list[float | None], int]:
-    """Typed rows -> Fountain lines. -> (text, page per line, speeches rejoined).
+def _emit(typed: list[tuple[str, Line]]) -> tuple[list[Row], int]:
+    """Classified rows -> Fountain rows. -> (rows, speeches rejoined).
 
-    The page list runs alongside the text so the page each row printed on
-    survives the trip out to Fountain and back. Without it the only thing left
-    downstream is a line number in a file that never had pages, and every rule
-    about a page break would have to estimate where the breaks were.
+    Emits `Row` rather than bare text so the page each line printed on, and
+    the element type geometry decided, survive the trip out to Fountain. The
+    text alone would leave a line number in a document that never had pages.
     """
-    out: list[str] = []
-    pages: list[float | None] = []
+    out: list[Row] = []
     rejoined = 0
     last_cue: str | None = None
     prev_kind: str | None = None
 
-    def write(text: str, page: float | None) -> None:
-        out.append(text)
-        pages.append(page)
+    def write(text: str, kind: str, pos: float | None) -> None:
+        out.append(Row(text, kind, pos))
 
     def blank():
-        if out and out[-1] != "":
-            write("", None)
+        if out and out[-1].text != "":
+            write("", "", None)
 
     for kind, ln in typed:
         text = ln.text.strip()
         if kind == "heading":
             blank()
-            write(text, ln.pos)
+            write(text, kind, ln.pos)
             last_cue = None
         elif kind == "character":
             base = CONTD_SUFFIX_RE.sub("", text).strip()
@@ -325,42 +371,23 @@ def _emit(typed: list[tuple[str, Line]]) -> tuple[list[str], list[float | None],
                 prev_kind = kind
                 continue
             blank()
-            write(text, ln.pos)
+            write(text, kind, ln.pos)
             last_cue = base
         elif kind in {"dialogue", "parenthetical"}:
-            write(text, ln.pos)
+            write(text, kind, ln.pos)
         elif kind == "transition":
             blank()
-            write(text, ln.pos)
+            write(text, kind, ln.pos)
             last_cue = None
         else:
             if prev_kind != "action" or ln.gap_before:
                 blank()
             # Geometry says action; a line-based parser would read an all-caps
             # one as a cue. Fountain's '!' says otherwise.
-            write("!" + text if FORCE_ACTION_RE.match(text) else text, ln.pos)
+            write("!" + text if FORCE_ACTION_RE.match(text) else text, kind, ln.pos)
             last_cue = None
         prev_kind = kind
-    return out, pages, rejoined
-
-
-def _stamp_pages(script: Script, page_map: list[float | None]) -> None:
-    """Put each element back on the page it came off.
-
-    `parse_text` numbers its elements by line in the Fountain it was handed,
-    and that text was built one line at a time from rows that each knew their
-    page. So the line number indexes straight back into the page list. Scene
-    and script objects share these Element instances, so stamping once is
-    enough for every layer that reads them.
-    """
-    for el in script.elements:
-        index = el.line_no - 1
-        if 0 <= index < len(page_map):
-            pos = page_map[index]
-            if pos is not None:
-                el.page_pos = round(pos, 4)
-                el.page = int(pos)
-
+    return out, rejoined
 
 
 
@@ -438,7 +465,7 @@ def ingest(path: str | Path) -> PdfIngest:
     if not lines:
         notes.append("No extractable text. The PDF is probably a scan, or its "
                      "fonts carry no Unicode mapping.")
-        return PdfIngest("", n_pages, 0.0, notes, source_meta=meta)
+        return PdfIngest([], n_pages, 0.0, notes, meta)
 
     confidence = text_confidence(lines)
     if confidence < TEXT_CONFIDENCE_FLOOR:
@@ -466,11 +493,11 @@ def ingest(path: str | Path) -> PdfIngest:
              for ln in lines[consumed:]]
     dropped = sum(1 for kind, _ in typed if kind == "drop")
     kept = [(k, ln) for k, ln in typed if k != "drop"]
-    body, body_pages, rejoined = _emit(kept)
-    out = cover + body
+    body, rejoined = _emit(kept)
     # `_title_page` only ever reads page one, and its last entry is the blank
     # line that closes the Fountain title block.
-    page_map = [1.0 if key else None for key in cover] + body_pages
+    rows = [Row(key, "title_page" if key else "", 1.0 if key else None)
+            for key in cover] + body
 
     headings = sum(1 for kind, _ in kept if kind == "heading")
     if headings < n_pages * MIN_HEADINGS_PER_PAGE:
@@ -487,7 +514,7 @@ def ingest(path: str | Path) -> PdfIngest:
     if cues == 0:
         notes.append("No character cues found at a dialogue indent. The layout "
                      "is not standard screenplay geometry.")
-    return PdfIngest("\n".join(out) + "\n", n_pages, action_x, notes, page_map, meta)
+    return PdfIngest(rows, n_pages, action_x, notes, meta)
 
 
 def parse_pdf(path: str | Path) -> tuple[Script, list[str]]:
@@ -500,7 +527,7 @@ def parse_pdf(path: str | Path) -> tuple[Script, list[str]]:
     script.source_meta = result.source_meta
     # It also states which page every line fell on, so that is carried back
     # onto the elements rather than reconstructed from a line number.
-    _stamp_pages(script, result.page_map)
+    result.stamp(script)
     # With every element's position known, a scene's length is the distance to
     # the next scene rather than a character count divided by a constant.
     script.measure_scenes()

@@ -2,7 +2,86 @@
 
 Notable changes to Sluglint. Dates are when the work landed rather than when it shipped.
 
-## Unreleased
+## 0.2.0
+
+### Licence: tier placement can change, the rulebook floor cannot
+
+Hard rule 11 previously fused two promises. It now separates them.
+
+**Unchanged and permanent.** Every rule stays visible and free for
+noncommercial use. The rulebook is readable in full by anyone, including the
+rules a paid tier runs on your behalf, and no build ever ships a smaller
+rulebook than the public one.
+
+**Now explicitly changeable.** Features built around the engine, meaning visual
+output, exports, hosting, conversion and batch runs, may move between free and
+paid tiers in either direction. The tiering was drawn before there were any
+customers, and a guess made that early should not bind the project forever
+simply because it was written down first.
+
+Four conditions keep it honest: rules are exempt and that is checked first, a
+published release keeps the terms it shipped with and its tag stays up, any
+move is stated in the release notes for the version it happens in, and the
+reason goes in the changelog. This entry is that rule applied to itself.
+
+**No feature moves tier in 0.2.0.** The stats dashboard and the metrics layer
+stay free, which is where they shipped.
+
+### Page numbers come from the PDF
+
+The reader knew the real page of every line and discarded it at the Fountain
+bridge, so page numbers were reconstructed from one global scale factor.
+
+- `Element.page` and `Scene.page` now carry the page the line printed on,
+  routed through `PdfIngest.page_map` and `_stamp_pages`.
+- A finding cites the page a writer is looking at rather than a line number in
+  a file reconstructed from their PDF.
+- `None` on a Fountain draft, which has no pages. A rule about pagination stays
+  silent there rather than estimating.
+- Unblocks the four page-break rules (a `(MORE)` with no `(CONT'D)`, a heading
+  alone at a page foot, a speech or a sentence split across a break).
+
+### Facts the file states are kept rather than thrown away
+
+`page.width` was read on every page and never used. `Script.source_meta` now
+carries page size, font name, font share, monospace share and rotated-page
+count. Facts, never findings, and never derived.
+
+- **Monospace is tested by advance width**, which survives the renaming an
+  embedded font subset does to itself. Measured over 12 produced screenplays:
+  ten Courier documents score 0.87 to 1.00 and the two that are not Courier
+  score 0.30 and 0.38, with nothing between. The threshold was first guessed at
+  0.90, which called Get Out proportional despite it being set in Courier. It
+  is 0.70, and it is measured.
+- **Page size explains why a raw point-size rule is unwritable.** Moneyball is
+  a 5.5 by 8.5 inch page. Its type is small and its layout is ordinary.
+- Rotation is detected and reported. pdfplumber already normalises the
+  coordinates, so there is nothing to correct, only a fact worth stating
+  because a rotated page usually means a scan.
+- New `docs/field-provenance.md` is the contract: every value the linter
+  reasons about, labelled STATED, DERIVED or ASSUMED, with the code that
+  produces it, plus a list of what the file states that we still drop.
+
+### Removed
+
+- **F063** (two places joined by a slash in a heading). Cole/Haag and
+  storysense both hold that the slash is correct for a room inside a building
+  and for `INT./EXT.`, so the rule contradicted two authorities.
+- **F054** (first appearance not set in capitals). A house habit rather than a
+  defect a writer could act on.
+- `LINES_PER_PAGE` and `MAX_HEADINGS_PER_PAGE`, both superseded and unread. A
+  dead constant is worse than an assumption because it reads as a live
+  decision.
+
+Rulebook is **148 rules**. Test count is 223.
+
+### CI
+
+Python matrix cut from four versions to two: 3.10, the oldest `requires-python`
+claims, and 3.13, the one the project is developed on. The two in between never
+failed alone.
+
+## Earlier, unreleased
 
 ### Rulebook: 106 rules to 150
 

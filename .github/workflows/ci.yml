@@ -12,7 +12,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        # Only the two that mean anything: the oldest version pyproject claims
+        # to support, and the one the project is developed on. 3.11 and 3.12
+        # sat between them and never once failed alone, so they were pure cost.
+        python-version: ["3.10", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

@@ -1,6 +1,6 @@
 [project]
 name = "sluglint"
-version = "0.1.0"
+version = "0.2.0"
 description = "Sluglint: a rule-cited linter for screenplays (format, consistency, and LLM-judged craft rules)"
 readme = "README.md"
 requires-python = ">=3.10"

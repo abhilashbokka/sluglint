@@ -51,14 +51,25 @@ jobs:
           done
       - name: Lint the fixtures end to end
         run: |
+          # clean_pages is the only fixture that must come back clean; the
+          # profile fixtures all say "defects injected on purpose" on their own
+          # title page, so exit 1 is what passing looks like for them. Asserting
+          # 0 there means the fixture stops proving the rule it was written for
+          # the moment the rule starts working, which is how the regional one
+          # broke: matching a Telugu cue to its Latin spelling is exactly what
+          # the indian-regional profile exists to do.
           python -m sluglint.cli lint examples/clean_pages.fountain
-          python -m sluglint.cli lint --profile tv-pilot examples/night_shift_pilot.fountain
-          python -m sluglint.cli lint --profile indian-regional examples/nadi_regional.fountain
           python -m sluglint.cli diff examples/the_last_train.fountain examples/the_last_train_v2.fountain
-          # The shooting fixture has injected numbering errors; exit 1 is the pass condition.
-          if python -m sluglint.cli lint --profile shooting-script examples/switching_yard_production.fountain; then
-            echo "expected exit 1 on the shooting fixture" && exit 1
-          fi
+          for spec in "tv-pilot:night_shift_pilot" \
+                      "indian-regional:nadi_regional" \
+                      "shooting-script:switching_yard_production"; do
+            profile="${spec%%:*}"; fixture="${spec##*:}"
+            code=0
+            python -m sluglint.cli lint --profile "$profile" "examples/$fixture.fountain" || code=$?
+            if [ "$code" -gt 1 ]; then
+              echo "$fixture crashed under $profile (exit $code)" && exit 1
+            fi
+          done
 
   rulebook:
     runs-on: ubuntu-latest

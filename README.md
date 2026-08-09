@@ -6,7 +6,7 @@
 severity, a line number, a source, and a suggested fix. It never offers an
 opinion about whether your story is good.
 
-![Python](https://img.shields.io/badge/python-3.10+-3776AB?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-223%20passing-2ea44f)
 ![Rulebook](https://img.shields.io/badge/rulebook-148%20rules%20as%20data-E8A33D)
 ![Benchmark](https://img.shields.io/badge/injected%20defect%20recall-97%25-2ea44f)

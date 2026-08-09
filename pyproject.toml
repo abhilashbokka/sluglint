@@ -3,7 +3,7 @@ name = "sluglint"
 version = "0.2.0"
 description = "Sluglint: a rule-cited linter for screenplays (format, consistency, and LLM-judged craft rules)"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 license = { text = "PolyForm-Noncommercial-1.0.0" }
 authors = [{ name = "Abhilash Reddy Bokka" }]
 keywords = ["screenplay", "screenwriting", "linter", "fountain", "film", "script"]

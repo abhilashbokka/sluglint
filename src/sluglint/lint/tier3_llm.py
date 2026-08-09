@@ -567,7 +567,11 @@ def _sender(base_url: str, api_key: str, model: str, throttle: _Throttle,
                                            schema=schema), throttle)
         return send_http
 
-    import anthropic  # noqa: PLC0415
+    # `anthropic` lives behind the `llm` extra and CI installs without it, so
+    # pylint cannot resolve the name there. That is the dependency being
+    # genuinely optional rather than a missing requirement; the guarded import
+    # is the whole point. See hard rule 7.
+    import anthropic  # noqa: PLC0415  # pylint: disable=import-error
     client = anthropic.Anthropic()
 
     def send_sdk(system: str, user: str) -> tuple[str, str]:

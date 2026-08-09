@@ -375,7 +375,10 @@ def _source_facts(pdf, widths: list[float], heights: list[float],
         for ch in page.chars:
             if not ch.get("text", " ").strip():
                 continue
-            fonts[str(ch.get("fontname", "")).split("+")[-1]] += 1
+            # An embedded subset is named 'AAAAAA+CourierNewPSMT'. Only the
+            # tag before the first '+' is the subset marker, so split once
+            # from the right and keep the real name.
+            fonts[str(ch.get("fontname", "")).rsplit("+", maxsplit=1)[-1]] += 1
             advances[round(float(ch.get("adv", 0.0)), 2)] += 1
     facts: dict = {"pages": len(pdf.pages), "rotated_pages": rotated}
     if widths and heights:
